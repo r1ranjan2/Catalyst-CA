@@ -128,7 +128,7 @@
                 let address = document.getElementById('clientAddress').value;
 
                 try {
-                    let response = await fetch('http://localhost:3000/api/register', {
+                    let response = await fetch('https://catalyst-ca.onrender.com/api/register', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ companyName, gstin, address, email, password })
@@ -149,7 +149,7 @@
                 }
             } else {
                 try {
-                    let response = await fetch('http://localhost:3000/api/login', {
+                    let response = await fetch('https://catalyst-ca.onrender.com/api/login', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ email, password })
@@ -161,7 +161,7 @@
                     if(response.ok) {
                         localStorage.setItem('activeClientName', result.companyName);
                         localStorage.setItem('activeClientGST', result.gstin || '');
-                        localStorage.setItem('activeClientAddress', result.address || ''); // Address saved here
+                        localStorage.setItem('activeClientAddress', result.address || ''); 
                         window.location.href = "billing.html";
                     } else {
                         alert("❌ " + result.message);

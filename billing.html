@@ -247,7 +247,7 @@
                 const customerState = customerGSTInput.substring(0, 2);
                 const clientState = clientGST.substring(0, 2);
                 
-                // Sirf tabhi IGST check hoga jab shuru ke 2 akshar valid numbers (0-9) honge
+                // IGST only if digits are valid and match client
                 const isCustomerStateNumber = /^\d{2}$/.test(customerState);
 
                 if (isCustomerStateNumber && customerState !== clientState) {
@@ -279,7 +279,7 @@
         }
 
         function clearBill() {
-            if(confirm("Are you sure you want to clear this bill and start a new one?")) {
+            if(confirm("Are you sure you want to clear this bill?")) {
                 window.location.reload();
             }
         }
@@ -302,7 +302,8 @@
             };
 
             try {
-                let response = await fetch('http://localhost:3000/api/save-bill', {
+                // YAHAN LINK UPDATE KIYA GAYA HAI 
+                let response = await fetch('https://catalyst-ca.onrender.com/api/save-bill', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(billData)
@@ -310,17 +311,15 @@
                 
                 let result = await response.json();
                 if(response.ok) {
-                    alert("✅ Success! Bill CA ko submit ho gaya hai.\n\nAap abhi bhi is bill ka Print nikal sakte hain.");
+                    alert("✅ Success! Bill submitted.");
                     saveBtn.innerHTML = '<i class="fa-solid fa-check"></i> Submitted';
-                    saveBtn.classList.replace('bg-green-600', 'bg-slate-400');
-                    saveBtn.classList.replace('hover:bg-green-700', 'hover:bg-slate-400');
                 } else {
                     alert("❌ Error: " + result.message);
                     saveBtn.disabled = false;
                     saveBtn.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> Save & Submit to CA';
                 }
             } catch (error) {
-                alert("Failed to connect to server. Ensure your backend is running.");
+                alert("Failed to connect to server.");
                 saveBtn.disabled = false;
                 saveBtn.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> Save & Submit to CA';
             }
