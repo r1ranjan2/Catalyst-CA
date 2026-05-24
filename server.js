@@ -3,7 +3,6 @@ const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
-const nodemailer = require('nodemailer');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -17,14 +16,6 @@ mongoose.connect(mongoURI)
     .then(() => console.log("🟢 Cloud Database connected successfully!"))
     .catch((err) => console.log("🔴 DB Connection Error:", err.message));
 
-const transporter = nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-        user: process.env.EMAIL_USER, 
-        pass: process.env.EMAIL_PASS 
-    }
-});
-
 const userSchema = new mongoose.Schema({
     companyName: { type: String, required: true },
     gstin: String,
@@ -35,6 +26,28 @@ const userSchema = new mongoose.Schema({
     verificationToken: String
 });
 const User = mongoose.model('User', userSchema);
+
+// Naya Email bhejne ka function jo Google Apps Script use karega
+async function sendEmailViaScript(toEmail, subject, htmlContent) {
+    try {
+        const response = await fetch(process.env.SCRIPT_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                toEmail: toEmail,
+                subject: subject,
+                htmlContent: htmlContent
+            })
+        });
+        
+        const result = await response.json();
+        console.log("🟢 Email Script Response:", result);
+    } catch (error) {
+        console.error("🔴 Error calling Email Script:", error);
+    }
+}
 
 app.post('/api/register', async (req, res) => {
     try {
@@ -52,24 +65,21 @@ app.post('/api/register', async (req, res) => {
 
         const verificationLink = `https://catalyst-ca.onrender.com/api/verify-email?token=${token}`;
         
-        const mailOptions = {
-            from: '"Catalyst CA" <' + process.env.EMAIL_USER + '>', 
-            to: email, 
-            subject: 'Activate your Catalyst CA Portal Account',
-            html: `
-                <div style="font-family: Arial, sans-serif; max-width: 600px; padding: 20px;">
-                    <h2 style="color: #1d4ed8;">Welcome to Catalyst CA!</h2>
-                    <p>Hello <strong>${companyName}</strong>,</p>
-                    <p>Please click the button below to verify your email address. This step is required to activate your account and start generating invoices.</p>
-                    <a href="${verificationLink}" style="display: inline-block; background-color: #1d4ed8; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold; margin-top: 15px;">Activate My Account</a>
-                </div>
-            `
-        };
+        const htmlContent = `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; padding: 20px;">
+                <h2 style="color: #1d4ed8;">Welcome to Catalyst CA!</h2>
+                <p>Hello <strong>${companyName}</strong>,</p>
+                <p>Please click the button below to verify your email address. This step is required to activate your account and start generating invoices.</p>
+                <a href="${verificationLink}" style="display: inline-block; background-color: #1d4ed8; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold; margin-top: 15px;">Activate My Account</a>
+            </div>
+        `;
 
-        await transporter.sendMail(mailOptions);
+        // Yahan par hum ab SMTP ki jagah script function call kar rahe hain
+        await sendEmailViaScript(email, 'Activate your Catalyst CA Portal Account', htmlContent);
+
         res.status(200).json({ message: "Registration successful! Please check your email." });
     } catch (error) {
-        console.log("Registration Email Error: ", error);
+        console.log("Registration Error: ", error);
         res.status(500).json({ message: "Server error during registration!" });
     }
 });
