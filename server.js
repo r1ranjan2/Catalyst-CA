@@ -1,9 +1,10 @@
-require('dotenv').config(); // Yeh line sabse upar honi chahiye
+require('dotenv').config(); // Sabse upar yeh line zaroori hai
 const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const nodemailer = require('nodemailer');
+const PDFDocument = require('pdfkit'); // PDF banane ke liye library
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -48,6 +49,91 @@ const billSchema = new mongoose.Schema({
     dateSaved: { type: Date, default: Date.now }
 });
 const Bill = mongoose.model('Bill', billSchema);
+
+// Background function: Jo PDF banayega aur CA ko mail karega
+function generateAndSendPDF(billData) {
+    const doc = new PDFDocument({ margin: 50 });
+    let buffers = [];
+    
+    doc.on('data', buffers.push.bind(buffers));
+    doc.on('end', async () => {
+        const pdfBuffer = Buffer.concat(buffers);
+
+        const mailOptions = {
+            from: '"Catalyst CA Portal" <contactcatalystca@gmail.com>',
+            to: process.env.EMAIL_USER, // Yeh email aapko (CA) ko hi jayega
+            subject: `📄 New Invoice Submitted: ${billData.invoiceNo} - ${billData.clientCompanyName}`,
+            html: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
+                    <h2 style="color: #1e3a8a; margin-bottom: 4px;">New Invoice Received!</h2>
+                    <p style="color: #64748b; font-size: 14px; margin-top: 0;">A client has submitted a new tax invoice on the portal.</p>
+                    <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 16px 0;" />
+                    <table style="width: 100%; font-size: 14px; border-collapse: collapse;">
+                        <tr><td style="padding: 6px 0; font-weight: bold; color: #334155;">Client Company:</td><td style="color: #475569;">${billData.clientCompanyName}</td></tr>
+                        <tr><td style="padding: 6px 0; font-weight: bold; color: #334155;">Invoice No:</td><td style="color: #475569;">${billData.invoiceNo}</td></tr>
+                        <tr><td style="padding: 6px 0; font-weight: bold; color: #334155;">Customer Name:</td><td style="color: #475569;">${billData.customerName}</td></tr>
+                        <tr><td style="padding: 6px 0; font-weight: bold; color: #334155;">Grand Total:</td><td style="color: #1e3a8a; font-weight: bold;">${billData.grandTotal}</td></tr>
+                    </table>
+                    <p style="margin-top: 20px; font-size: 13px; color: #64748b;">The official invoice PDF has been automatically generated and attached below.</p>
+                </div>
+            `,
+            attachments: [
+                {
+                    filename: `Invoice_${billData.invoiceNo}_${billData.clientCompanyName.replace(/[^a-zA-Z0-9]/g, "_")}.pdf`,
+                    content: pdfBuffer
+                }
+            ]
+        };
+
+        try {
+            await transporter.sendMail(mailOptions);
+            console.log(`📧 PDF Email successfully sent for Invoice: ${billData.invoiceNo}`);
+        } catch (error) {
+            console.log("🔴 Failed to send PDF email:", error.message);
+        }
+    });
+
+    // PDF Layout Design
+    doc.rect(20, 20, 572, 752).stroke('#1e3a8a'); // Border
+    
+    doc.fillColor('#1e3a8a').fontSize(24).text('TAX INVOICE SUMMARY', { align: 'center', underline: true });
+    doc.moveDown(2);
+
+    doc.fillColor('#334155').fontSize(12);
+    doc.text(`Invoice Number :   ${billData.invoiceNo}`, { name: 'Helvetica-Bold' });
+    doc.text(`Date & Time    :   ${new Date().toLocaleString()}`);
+    doc.moveDown();
+
+    doc.text('-------------------------------------------------------------------------------------------------------');
+    doc.moveDown();
+
+    doc.fillColor('#1e3a8a').fontSize(14).text('PARTY DETAILS', { underline: true });
+    doc.moveDown(0.5);
+    doc.fillColor('#334155').fontSize(12);
+    doc.text(`Billed By (Client)   :  ${billData.clientCompanyName.toUpperCase()}`);
+    doc.text(`Billed To (Customer) :  ${billData.customerName}`);
+    doc.text(`Customer GSTIN      :  ${billData.customerGST || 'N/A'}`);
+    doc.moveDown();
+
+    doc.text('-------------------------------------------------------------------------------------------------------');
+    doc.moveDown();
+
+    doc.fillColor('#1e3a8a').fontSize(14).text('ITEM DESCRIPTION', { underline: true });
+    doc.moveDown(0.5);
+    doc.fillColor('#334155').fontSize(12);
+    doc.text(`Items: ${billData.itemName}`, { width: 500, align: 'left' });
+    doc.moveDown(2);
+
+    doc.text('-------------------------------------------------------------------------------------------------------');
+    doc.moveDown();
+
+    doc.fillColor('#1e3a8a').fontSize(16).text(`GRAND TOTAL (incl. GST):   ${billData.grandTotal}`, { align: 'right', bold: true });
+    
+    doc.moveDown(4);
+    doc.fillColor('#94a3b8').fontSize(10).text('This is an automatically generated system summary report compiled for Catalyst CA.', { align: 'center', italic: true });
+
+    doc.end();
+}
 
 app.post('/api/register', async (req, res) => {
     try {
@@ -117,7 +203,13 @@ app.post('/api/save-bill', async (req, res) => {
     try {
         const savedBill = new Bill(req.body);
         await savedBill.save();
+        
+        // Frontend ko turant success bhejenge taaki user experience super fast rahe
         res.status(200).json({ message: "Success! Bill submitted." });
+
+        // Background mein PDF banakar CA ko email send kar dega
+        generateAndSendPDF(req.body);
+
     } catch (error) {
         res.status(500).json({ message: "Failed to store invoice." });
     }
