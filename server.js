@@ -1,3 +1,7 @@
+// SABSE UPAR YE LINE ADD KI HAI - Yahi asli fix hai
+const dns = require('dns');
+dns.setDefaultResultOrder('ipv4first'); 
+
 require('dotenv').config(); 
 const express = require('express');
 const cors = require('cors');
@@ -18,13 +22,11 @@ mongoose.connect(mongoURI)
     .then(() => console.log("🟢 Cloud Database connected successfully!"))
     .catch((err) => console.log("🔴 DB Connection Error:", err.message));
 
-// FIXED: family: 4 forced IPv4 connection to prevent ENETUNREACH
+// Transporter settings
 const transporter = nodemailer.createTransport({
     host: 'smtp.gmail.com',
     port: 587,
-    secure: false,
-    requireTLS: true,
-    family: 4, 
+    secure: false, // Port 587 ke liye false hona chahiye
     auth: {
         user: process.env.EMAIL_USER, 
         pass: process.env.EMAIL_PASS 
@@ -92,6 +94,7 @@ app.post('/api/register', async (req, res) => {
 
         const verificationLink = `https://catalyst-ca.onrender.com/api/verify-email?token=${token}`;
         
+        // Yahan se error aa raha tha, ab ye direct IPv4 route lega
         await transporter.sendMail({
             from: '"Catalyst CA" <' + process.env.EMAIL_USER + '>', 
             to: email, 
