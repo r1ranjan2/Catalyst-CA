@@ -1,14 +1,9 @@
-// SABSE UPAR YE LINE ADD KI HAI - Yahi asli fix hai
-const dns = require('dns');
-dns.setDefaultResultOrder('ipv4first'); 
-
 require('dotenv').config(); 
 const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const nodemailer = require('nodemailer');
-const PDFDocument = require('pdfkit'); 
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -22,17 +17,12 @@ mongoose.connect(mongoURI)
     .then(() => console.log("🟢 Cloud Database connected successfully!"))
     .catch((err) => console.log("🔴 DB Connection Error:", err.message));
 
-// Transporter settings
 const transporter = nodemailer.createTransport({
-    host: 'smtp.gmail.com',
-    port: 587,
-    secure: false, // Port 587 ke liye false hona chahiye
+    service: 'gmail',
     auth: {
         user: process.env.EMAIL_USER, 
         pass: process.env.EMAIL_PASS 
-    },
-    connectionTimeout: 10000,
-    greetingTimeout: 10000
+    }
 });
 
 const userSchema = new mongoose.Schema({
@@ -46,40 +36,6 @@ const userSchema = new mongoose.Schema({
 });
 const User = mongoose.model('User', userSchema);
 
-const billSchema = new mongoose.Schema({
-    clientCompanyName: String,
-    customerName: String,
-    customerGST: String,
-    invoiceNo: String,
-    itemName: String,
-    grandTotal: String,
-    dateSaved: { type: Date, default: Date.now }
-});
-const Bill = mongoose.model('Bill', billSchema);
-
-function generateAndSendPDF(billData) {
-    const doc = new PDFDocument({ margin: 50 });
-    let buffers = [];
-    doc.on('data', buffers.push.bind(buffers));
-    doc.on('end', async () => {
-        const pdfBuffer = Buffer.concat(buffers);
-        const mailOptions = {
-            from: '"Catalyst CA" <' + process.env.EMAIL_USER + '>',
-            to: process.env.EMAIL_USER, 
-            subject: `📄 Invoice: ${billData.invoiceNo}`,
-            html: `<p>New Invoice from ${billData.clientCompanyName}</p>`,
-            attachments: [{ filename: 'Invoice.pdf', content: pdfBuffer }]
-        };
-        try {
-            await transporter.sendMail(mailOptions);
-        } catch (error) {
-            console.log("🔴 PDF Email Error:", error.message);
-        }
-    });
-    doc.text(`Invoice No: ${billData.invoiceNo}`);
-    doc.end();
-}
-
 app.post('/api/register', async (req, res) => {
     try {
         const { companyName, gstin, address, email, password } = req.body;
@@ -89,60 +45,73 @@ app.post('/api/register', async (req, res) => {
         const hashedPassword = await bcrypt.hash(password, 10);
         const token = "TOKEN-" + Math.random().toString(36).substring(2, 15);
 
-        const newUser = new User({ companyName, gstin, address, email, password: hashedPassword, verificationToken: token });
+        const newUser = new User({
+            companyName, gstin, address, email, password: hashedPassword, verificationToken: token
+        });
         await newUser.save();
 
         const verificationLink = `https://catalyst-ca.onrender.com/api/verify-email?token=${token}`;
         
-        // Yahan se error aa raha tha, ab ye direct IPv4 route lega
-        await transporter.sendMail({
+        const mailOptions = {
             from: '"Catalyst CA" <' + process.env.EMAIL_USER + '>', 
             to: email, 
-            subject: 'Activate Account',
-            html: `<a href="${verificationLink}">Verify Email</a>`
-        });
+            subject: 'Activate your Catalyst CA Portal Account',
+            html: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; padding: 20px;">
+                    <h2 style="color: #1d4ed8;">Welcome to Catalyst CA!</h2>
+                    <p>Hello <strong>${companyName}</strong>,</p>
+                    <p>Please click the button below to verify your email address. This step is required to activate your account and start generating invoices.</p>
+                    <a href="${verificationLink}" style="display: inline-block; background-color: #1d4ed8; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold; margin-top: 15px;">Activate My Account</a>
+                </div>
+            `
+        };
 
-        res.status(200).json({ message: "Registration successful!" });
+        await transporter.sendMail(mailOptions);
+        res.status(200).json({ message: "Registration successful! Please check your email." });
     } catch (error) {
-        console.error("🔴 Registration Error:", error);
+        console.log("Registration Email Error: ", error);
         res.status(500).json({ message: "Server error during registration!" });
     }
 });
 
 app.get('/api/verify-email', async (req, res) => {
     try {
-        const user = await User.findOne({ verificationToken: req.query.token });
-        if (!user) return res.status(400).send("Invalid link");
+        const { token } = req.query;
+        const user = await User.findOne({ verificationToken: token });
+        if (!user) return res.status(400).send("<h3>Invalid or expired link!</h3>");
+        
         user.isVerified = true;
         user.verificationToken = undefined;
         await user.save();
-        res.send("<h2>Account Activated!</h2>");
+        
+        res.send(`
+            <div style="text-align: center; font-family: Arial, sans-serif; margin-top: 50px;">
+                <h2 style="color: green;">Account Activated Successfully! ✅</h2>
+                <p>You can now close this tab and login to your portal.</p>
+            </div>
+        `);
     } catch (error) {
-        res.status(500).send("Server Error");
+        res.status(500).send("Server Error.");
     }
 });
 
 app.post('/api/login', async (req, res) => {
     try {
-        const user = await User.findOne({ email: req.body.email });
-        if (!user || !user.isVerified) return res.status(400).json({ message: "Account not found or not verified!" });
-        const isMatch = await bcrypt.compare(req.body.password, user.password);
+        const { email, password } = req.body;
+        const user = await User.findOne({ email });
+        if (!user) return res.status(400).json({ message: "Account not found!" });
+        
+        if (!user.isVerified) return res.status(400).json({ message: "Please verify your email first! Check your inbox." });
+        
+        const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) return res.status(400).json({ message: "Invalid credentials!" });
-        res.status(200).json({ companyName: user.companyName });
+        
+        res.status(200).json({ companyName: user.companyName, gstin: user.gstin, address: user.address });
     } catch (error) {
         res.status(500).json({ message: "Server error!" });
     }
 });
 
-app.post('/api/save-bill', async (req, res) => {
-    try {
-        const savedBill = new Bill(req.body);
-        await savedBill.save();
-        res.status(200).json({ message: "Success!" });
-        generateAndSendPDF(req.body);
-    } catch (error) {
-        res.status(500).json({ message: "Failed!" });
-    }
+app.listen(PORT, () => {
+    console.log(`🚀 Catalyst CA Backend running at Port: ${PORT}`);
 });
-
-app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
