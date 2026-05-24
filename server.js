@@ -1,10 +1,10 @@
-require('dotenv').config(); // Sabse upar yeh line zaroori hai
+require('dotenv').config(); 
 const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const nodemailer = require('nodemailer');
-const PDFDocument = require('pdfkit'); // PDF banane ke liye library
+const PDFDocument = require('pdfkit'); 
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -12,19 +12,28 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
-// Database connection using Environment Variable from .env file
 const mongoURI = process.env.MONGO_URI; 
 
 mongoose.connect(mongoURI)
     .then(() => console.log("🟢 Cloud Database connected successfully!"))
     .catch((err) => console.log("🔴 DB Connection Error:", err.message));
 
-// Email Transporter using Environment Variables
+// NAYA GMAIL TRANSPORTER AUR CHECKER
 const transporter = nodemailer.createTransport({
-    service: 'gmail',
+    host: 'smtp.gmail.com',
+    port: 465,
+    secure: true, // Yeh Render par Gmail ko atakne se rokta hai
     auth: {
         user: process.env.EMAIL_USER, 
         pass: process.env.EMAIL_PASS 
+    }
+});
+
+transporter.verify(function (error, success) {
+    if (error) {
+        console.log("🔴 GMAIL CONNECTION ERROR: ", error);
+    } else {
+        console.log("🟢 GMAIL is connected and ready to send emails!");
     }
 });
 
@@ -50,7 +59,6 @@ const billSchema = new mongoose.Schema({
 });
 const Bill = mongoose.model('Bill', billSchema);
 
-// Background function: Jo PDF banayega aur CA ko mail karega
 function generateAndSendPDF(billData) {
     const doc = new PDFDocument({ margin: 50 });
     let buffers = [];
@@ -60,8 +68,8 @@ function generateAndSendPDF(billData) {
         const pdfBuffer = Buffer.concat(buffers);
 
         const mailOptions = {
-            from: '"Catalyst CA Portal" <contactcatalystca@gmail.com>',
-            to: process.env.EMAIL_USER, // Yeh email aapko (CA) ko hi jayega
+            from: '"Catalyst CA Portal" <' + process.env.EMAIL_USER + '>',
+            to: process.env.EMAIL_USER, 
             subject: `📄 New Invoice Submitted: ${billData.invoiceNo} - ${billData.clientCompanyName}`,
             html: `
                 <div style="font-family: Arial, sans-serif; max-width: 600px; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
@@ -93,8 +101,7 @@ function generateAndSendPDF(billData) {
         }
     });
 
-    // PDF Layout Design
-    doc.rect(20, 20, 572, 752).stroke('#1e3a8a'); // Border
+    doc.rect(20, 20, 572, 752).stroke('#1e3a8a');
     
     doc.fillColor('#1e3a8a').fontSize(24).text('TAX INVOICE SUMMARY', { align: 'center', underline: true });
     doc.moveDown(2);
@@ -149,18 +156,18 @@ app.post('/api/register', async (req, res) => {
         });
         await newUser.save();
 
-        const verificationLink = `http://localhost:${PORT}/api/verify-email?token=${token}`;
+        const verificationLink = `https://catalyst-ca.onrender.com/api/verify-email?token=${token}`;
         
         const mailOptions = {
-            from: '"Catalyst CA" <contactcatalystca@gmail.com>', 
+            from: '"Catalyst CA" <' + process.env.EMAIL_USER + '>', 
             to: email, 
             subject: 'Activate your Catalyst CA Portal Account',
             html: `
                 <div style="font-family: Arial, sans-serif; max-width: 600px; padding: 20px;">
                     <h2 style="color: #1d4ed8;">Welcome to Catalyst CA!</h2>
                     <p>Hello <strong>${companyName}</strong>,</p>
-                    <p>Please click the button below to verify your email:</p>
-                    <a href="${verificationLink}" style="background-color: #1d4ed8; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Activate My Account</a>
+                    <p>Please click the button below to verify your email address. This step is required to activate your account and start generating invoices.</p>
+                    <a href="${verificationLink}" style="display: inline-block; background-color: #1d4ed8; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold; margin-top: 15px;">Activate My Account</a>
                 </div>
             `
         };
@@ -168,7 +175,8 @@ app.post('/api/register', async (req, res) => {
         await transporter.sendMail(mailOptions);
         res.status(200).json({ message: "Registration successful! Please check your email." });
     } catch (error) {
-        res.status(500).json({ message: "Server error!" });
+        console.log("Registration Email Error: ", error);
+        res.status(500).json({ message: "Server error during registration!" });
     }
 });
 
@@ -176,11 +184,18 @@ app.get('/api/verify-email', async (req, res) => {
     try {
         const { token } = req.query;
         const user = await User.findOne({ verificationToken: token });
-        if (!user) return res.status(400).send("<h3>Invalid link!</h3>");
+        if (!user) return res.status(400).send("<h3>Invalid or expired link!</h3>");
+        
         user.isVerified = true;
         user.verificationToken = undefined;
         await user.save();
-        res.send("<h2>Account Activated! You can close this tab.</h2>");
+        
+        res.send(`
+            <div style="text-align: center; font-family: Arial, sans-serif; margin-top: 50px;">
+                <h2 style="color: green;">Account Activated Successfully! ✅</h2>
+                <p>You can now close this tab and login to your portal.</p>
+            </div>
+        `);
     } catch (error) {
         res.status(500).send("Server Error.");
     }
@@ -190,9 +205,13 @@ app.post('/api/login', async (req, res) => {
     try {
         const { email, password } = req.body;
         const user = await User.findOne({ email });
-        if (!user || !user.isVerified) return res.status(400).json({ message: "Account not found or not verified!" });
+        if (!user) return res.status(400).json({ message: "Account not found!" });
+        
+        if (!user.isVerified) return res.status(400).json({ message: "Please verify your email first! Check your inbox." });
+        
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) return res.status(400).json({ message: "Invalid credentials!" });
+        
         res.status(200).json({ companyName: user.companyName, gstin: user.gstin, address: user.address });
     } catch (error) {
         res.status(500).json({ message: "Server error!" });
@@ -204,10 +223,7 @@ app.post('/api/save-bill', async (req, res) => {
         const savedBill = new Bill(req.body);
         await savedBill.save();
         
-        // Frontend ko turant success bhejenge taaki user experience super fast rahe
         res.status(200).json({ message: "Success! Bill submitted." });
-
-        // Background mein PDF banakar CA ko email send kar dega
         generateAndSendPDF(req.body);
 
     } catch (error) {
