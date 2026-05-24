@@ -18,24 +18,19 @@ mongoose.connect(mongoURI)
     .then(() => console.log("🟢 Cloud Database connected successfully!"))
     .catch((err) => console.log("🔴 DB Connection Error:", err.message));
 
-// FIXED: Port 587 aur secure false (STARTTLS) use karenge, ye connection timeout fix kar dega
+// FIXED: family: 4 forced IPv4 connection to prevent ENETUNREACH
 const transporter = nodemailer.createTransport({
     host: 'smtp.gmail.com',
-    port: 587, 
-    secure: false, 
+    port: 587,
+    secure: false,
+    requireTLS: true,
+    family: 4, 
     auth: {
         user: process.env.EMAIL_USER, 
         pass: process.env.EMAIL_PASS 
     },
-    connectionTimeout: 20000 
-});
-
-transporter.verify(function (error, success) {
-    if (error) {
-        console.log("🔴 GMAIL CONNECTION ERROR: ", error);
-    } else {
-        console.log("🟢 GMAIL is connected and ready to send emails!");
-    }
+    connectionTimeout: 10000,
+    greetingTimeout: 10000
 });
 
 const userSchema = new mongoose.Schema({
