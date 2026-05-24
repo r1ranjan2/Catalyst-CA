@@ -40,7 +40,7 @@ const billSchema = new mongoose.Schema({
 });
 const Bill = mongoose.model('Bill', billSchema);
 
-// Updated Email Function (Ab yeh PDF ko encode karke script ko bhejega)
+// Updated Email Function via Google Apps Script
 async function sendEmailViaScript(toEmail, subject, htmlContent, base64Attachment = null, attachmentName = null) {
     try {
         const payload = {
@@ -49,7 +49,6 @@ async function sendEmailViaScript(toEmail, subject, htmlContent, base64Attachmen
             htmlContent: htmlContent
         };
 
-        // Agar PDF aayi hai, toh use bhi packet mein daal do
         if (base64Attachment && attachmentName) {
             payload.base64Attachment = base64Attachment;
             payload.attachmentName = attachmentName;
@@ -70,29 +69,28 @@ async function sendEmailViaScript(toEmail, subject, htmlContent, base64Attachmen
     }
 }
 
-// PDF Generate aur Send karne ka naya logic
+// Professional PDF Generate aur Send karne ka logic
 function generateAndSendPDF(billData) {
-    const doc = new PDFDocument({ margin: 50 });
+    const doc = new PDFDocument({ margin: 50, size: 'A4' });
     let buffers = [];
     
     doc.on('data', buffers.push.bind(buffers));
     doc.on('end', async () => {
         const pdfBuffer = Buffer.concat(buffers);
-        const base64String = pdfBuffer.toString('base64'); // PDF ko text format mein badla
+        const base64String = pdfBuffer.toString('base64'); 
 
         const htmlContent = `
             <div style="font-family: Arial, sans-serif; max-width: 600px; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
                 <h2 style="color: #1e3a8a;">New Invoice Received!</h2>
                 <p>A client has submitted a new tax invoice on the portal.</p>
                 <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 16px 0;" />
-                <p><strong>Client Company:</strong> ${billData.clientCompanyName}</p>
-                <p><strong>Invoice No:</strong> ${billData.invoiceNo}</p>
-                <p><strong>Grand Total:</strong> ${billData.grandTotal}</p>
+                <p><strong>Client Company:</strong> ${billData.clientCompanyName || 'N/A'}</p>
+                <p><strong>Invoice No:</strong> ${billData.invoiceNo || 'N/A'}</p>
+                <p><strong>Grand Total:</strong> Rs. ${billData.grandTotal || '0'}</p>
             </div>
         `;
 
         try {
-            // Yahan se Google ko request jayegi PDF ke sath
             await sendEmailViaScript(
                 "contactcatalystca@gmail.com", 
                 `📄 New Invoice Submitted: ${billData.invoiceNo}`, 
@@ -105,13 +103,56 @@ function generateAndSendPDF(billData) {
         }
     });
 
-    // Simple PDF Design
-    doc.rect(20, 20, 572, 752).stroke('#1e3a8a');
-    doc.fillColor('#1e3a8a').fontSize(24).text('TAX INVOICE SUMMARY', { align: 'center', underline: true });
+    // --- PDF DESIGN START ---
+    
+    // Header
+    doc.fillColor('#333333').fontSize(24).text('TAX INVOICE', { align: 'right' });
+    doc.fontSize(10).fillColor('#666666').text(`Invoice Number: ${billData.invoiceNo || 'N/A'}`, { align: 'right' });
+    doc.text(`Date: ${new Date().toLocaleDateString()}`, { align: 'right' });
     doc.moveDown(2);
-    doc.fillColor('#334155').fontSize(12);
-    doc.text(`Invoice Number :   ${billData.invoiceNo}`);
-    doc.text(`Date & Time    :   ${new Date().toLocaleString()}`);
+
+    // Company Info (Billed By)
+    doc.fontSize(16).fillColor('#1e3a8a').text(billData.clientCompanyName || 'Your Company Name');
+    doc.moveDown(1);
+
+    // Customer Info (Billed To)
+    doc.fontSize(12).fillColor('#333333').text('BILLED TO:');
+    doc.fontSize(10).fillColor('#555555');
+    doc.text(`Customer Name: ${billData.customerName || 'N/A'}`);
+    doc.text(`GSTIN: ${billData.customerGST || 'N/A'}`);
+    doc.moveDown(2);
+
+    // Invoice Table Header
+    const tableTop = doc.y;
+    doc.strokeColor('#cccccc').lineWidth(1).moveTo(50, tableTop).lineTo(545, tableTop).stroke();
+    doc.moveDown(0.5);
+    
+    doc.fontSize(10).fillColor('#333333').font('Helvetica-Bold');
+    doc.text('Item Description', 50, doc.y, { continued: true, width: 300 });
+    doc.text('Amount', 350, doc.y, { align: 'right', width: 195 });
+    
+    doc.moveDown(0.5);
+    const tableBottom = doc.y;
+    doc.strokeColor('#cccccc').lineWidth(1).moveTo(50, tableBottom).lineTo(545, tableBottom).stroke();
+    doc.moveDown(1);
+
+    // Table Row
+    doc.font('Helvetica').fillColor('#555555');
+    doc.text(billData.itemName || 'N/A', 50, doc.y, { continued: true, width: 300 });
+    doc.text(`Rs. ${billData.grandTotal || '0'}`, 350, doc.y, { align: 'right', width: 195 });
+    doc.moveDown(1);
+
+    // Grand Total Section
+    const summaryTop = doc.y;
+    doc.strokeColor('#cccccc').lineWidth(1).moveTo(350, summaryTop).lineTo(545, summaryTop).stroke();
+    doc.moveDown(0.5);
+    
+    doc.fontSize(12).font('Helvetica-Bold').fillColor('#000000');
+    doc.text('Grand Total:', 350, doc.y, { continued: true, width: 100 });
+    doc.text(`Rs. ${billData.grandTotal || '0'}`, 450, doc.y, { align: 'right', width: 95 });
+    
+    // --- PDF DESIGN END ---
+
     doc.end();
 }
 
@@ -192,7 +233,6 @@ app.post('/api/save-bill', async (req, res) => {
         await savedBill.save();
         res.status(200).json({ message: "Success! Bill submitted." });
         
-        // Response bhejkar PDF generate karna start hoga
         generateAndSendPDF(req.body);
     } catch (error) {
         res.status(500).json({ message: "Failed to store invoice." });
