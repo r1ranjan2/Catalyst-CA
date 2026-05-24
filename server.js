@@ -18,17 +18,24 @@ mongoose.connect(mongoURI)
     .then(() => console.log("🟢 Cloud Database connected successfully!"))
     .catch((err) => console.log("🔴 DB Connection Error:", err.message));
 
-// Gmail Transporter with Timeout settings to prevent "infinite loading"
+// FIXED: Port 587 aur secure false (STARTTLS) use karenge, ye connection timeout fix kar dega
 const transporter = nodemailer.createTransport({
     host: 'smtp.gmail.com',
-    port: 465,
-    secure: true,
+    port: 587, 
+    secure: false, 
     auth: {
         user: process.env.EMAIL_USER, 
         pass: process.env.EMAIL_PASS 
     },
-    connectionTimeout: 10000, // 10 seconds timeout
-    greetingTimeout: 10000 
+    connectionTimeout: 20000 
+});
+
+transporter.verify(function (error, success) {
+    if (error) {
+        console.log("🔴 GMAIL CONNECTION ERROR: ", error);
+    } else {
+        console.log("🟢 GMAIL is connected and ready to send emails!");
+    }
 });
 
 const userSchema = new mongoose.Schema({
@@ -78,9 +85,7 @@ function generateAndSendPDF(billData) {
 
 app.post('/api/register', async (req, res) => {
     try {
-        console.log("🟢 Registration started for:", req.body.email);
         const { companyName, gstin, address, email, password } = req.body;
-        
         const existingUser = await User.findOne({ email });
         if (existingUser) return res.status(400).json({ message: "Email already registered!" });
 
@@ -99,11 +104,10 @@ app.post('/api/register', async (req, res) => {
             html: `<a href="${verificationLink}">Verify Email</a>`
         });
 
-        console.log("✅ Registration successful & email sent.");
         res.status(200).json({ message: "Registration successful!" });
     } catch (error) {
         console.error("🔴 Registration Error:", error);
-        res.status(500).json({ message: "Error! Check Render logs." });
+        res.status(500).json({ message: "Server error during registration!" });
     }
 });
 
