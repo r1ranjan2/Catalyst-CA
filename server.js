@@ -112,7 +112,7 @@ function generateAndSendPDF(billData) {
     doc.moveDown(2);
 
     // Company Info (Billed By)
-    doc.fontSize(16).fillColor('#1e3a8a').text(billData.clientCompanyName || 'Your Company Name');
+    doc.fontSize(16).fillColor('#1e3a8a').text(billData.clientCompanyName || 'Your Company Name', 50, doc.y);
     doc.moveDown(1);
 
     // Customer Info (Billed To)
@@ -122,34 +122,32 @@ function generateAndSendPDF(billData) {
     doc.text(`GSTIN: ${billData.customerGST || 'N/A'}`);
     doc.moveDown(2);
 
-    // Invoice Table Header
+    // Invoice Table Header (Fixed with absolute coordinates)
     const tableTop = doc.y;
     doc.strokeColor('#cccccc').lineWidth(1).moveTo(50, tableTop).lineTo(545, tableTop).stroke();
-    doc.moveDown(0.5);
     
+    const headerY = tableTop + 10;
     doc.fontSize(10).fillColor('#333333').font('Helvetica-Bold');
-    doc.text('Item Description', 50, doc.y, { continued: true, width: 300 });
-    doc.text('Amount', 350, doc.y, { align: 'right', width: 195 });
+    doc.text('Item Description', 50, headerY);
+    doc.text('Amount', 350, headerY, { width: 195, align: 'right' });
     
-    doc.moveDown(0.5);
-    const tableBottom = doc.y;
+    const tableBottom = headerY + 20;
     doc.strokeColor('#cccccc').lineWidth(1).moveTo(50, tableBottom).lineTo(545, tableBottom).stroke();
-    doc.moveDown(1);
 
-    // Table Row
+    // Table Row (Fixed with absolute coordinates)
+    const rowY = tableBottom + 15;
     doc.font('Helvetica').fillColor('#555555');
-    doc.text(billData.itemName || 'N/A', 50, doc.y, { continued: true, width: 300 });
-    doc.text(`Rs. ${billData.grandTotal || '0'}`, 350, doc.y, { align: 'right', width: 195 });
-    doc.moveDown(1);
+    doc.text(billData.itemName || 'N/A', 50, rowY, { width: 300 });
+    doc.text(`Rs. ${billData.grandTotal || '0'}`, 350, rowY, { width: 195, align: 'right' });
 
-    // Grand Total Section
-    const summaryTop = doc.y;
+    // Grand Total Section (Fixed with absolute coordinates)
+    const summaryTop = rowY + 30; 
     doc.strokeColor('#cccccc').lineWidth(1).moveTo(350, summaryTop).lineTo(545, summaryTop).stroke();
-    doc.moveDown(0.5);
     
+    const totalY = summaryTop + 15;
     doc.fontSize(12).font('Helvetica-Bold').fillColor('#000000');
-    doc.text('Grand Total:', 350, doc.y, { continued: true, width: 100 });
-    doc.text(`Rs. ${billData.grandTotal || '0'}`, 450, doc.y, { align: 'right', width: 95 });
+    doc.text('Grand Total:', 300, totalY, { width: 140, align: 'right' });
+    doc.text(`Rs. ${billData.grandTotal || '0'}`, 450, totalY, { width: 95, align: 'right' });
     
     // --- PDF DESIGN END ---
 
