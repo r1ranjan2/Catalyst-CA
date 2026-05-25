@@ -29,7 +29,6 @@ const userSchema = new mongoose.Schema({
 });
 const User = mongoose.model('User', userSchema);
 
-// strict: false ensure karega ki UI se aane wala naya data (Qty, Rate etc) reject na ho
 const billSchema = new mongoose.Schema({
     clientCompanyName: String,
     customerName: String,
@@ -41,7 +40,7 @@ const billSchema = new mongoose.Schema({
 }, { strict: false }); 
 const Bill = mongoose.model('Bill', billSchema);
 
-// Original Working Email Script API
+// Email Script API (UNTOUCHED)
 async function sendEmailViaScript(toEmail, subject, htmlContent, base64Attachment = null, attachmentName = null) {
     try {
         const payload = {
@@ -70,11 +69,46 @@ async function sendEmailViaScript(toEmail, subject, htmlContent, base64Attachmen
     }
 }
 
-// UI Matching PDF Generation Logic
+// PDF Generation with REVERSE MATH LOGIC
 function generateAndSendPDF(billData) {
     const doc = new PDFDocument({ margin: 50, size: 'A4' });
     let buffers = [];
     
+    // --- THE FIX: Reverse Math Calculator ---
+    // Safely extract numbers, removing ₹ and commas
+    const getNum = (val) => {
+        if (!val) return 0;
+        const cleaned = val.toString().replace(/[^0-9.]/g, ''); 
+        return parseFloat(cleaned) || 0;
+    };
+
+    let cTotal = getNum(billData.grandTotal);
+    let cQty = getNum(billData.qty) || 1;
+    let cGstPct = getNum(billData.gstPercent) || 18; // Default 18%
+
+    let cTaxable = getNum(billData.taxableValue);
+    let cTaxAmt = getNum(billData.taxAmount);
+    let cRate = getNum(billData.rate);
+
+    // AGAR FRONTEND NE TAX NAHI BHEJA, TOH BACKEND REVERSE CALCULATE KAREGA
+    if (cTaxable === 0 && cTotal > 0) {
+        // Formula: Taxable = GrandTotal / (1 + (GST / 100))
+        cTaxable = cTotal / (1 + (cGstPct / 100));
+        cTaxAmt = cTotal - cTaxable;
+    }
+
+    // Rate = Taxable / Qty
+    if (cRate === 0 && cTaxable > 0) {
+        cRate = cTaxable / cQty;
+    }
+
+    // Convert to exactly 2 decimal places for PDF
+    const strRate = cRate.toFixed(2);
+    const strTaxable = cTaxable.toFixed(2);
+    const strTaxAmt = cTaxAmt.toFixed(2);
+    const strTotal = cTotal.toFixed(2);
+    // -----------------------------------------
+
     doc.on('data', buffers.push.bind(buffers));
     doc.on('end', async () => {
         const pdfBuffer = Buffer.concat(buffers);
@@ -87,7 +121,7 @@ function generateAndSendPDF(billData) {
                 <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 16px 0;" />
                 <p><strong>Client Company:</strong> ${billData.clientCompanyName || 'N/A'}</p>
                 <p><strong>Invoice No:</strong> ${billData.invoiceNo || 'N/A'}</p>
-                <p><strong>Grand Total:</strong> Rs. ${billData.grandTotal || '0'}</p>
+                <p><strong>Grand Total:</strong> Rs. ${strTotal}</p>
             </div>
         `;
 
@@ -104,16 +138,14 @@ function generateAndSendPDF(billData) {
         }
     });
 
-    // --- EXACT UI MATCHING DESIGN START ---
-    const primaryColor = '#1d4ed8'; // Dark Blue 
+    // --- PDF DESIGN START (UNTOUCHED) ---
+    const primaryColor = '#1d4ed8'; 
     const textColor = '#333333';
     const lightText = '#666666';
 
-    // 1. Header Left
     doc.fillColor(primaryColor).fontSize(20).font('Helvetica-Bold').text('TAX INVOICE', 50, 50);
     doc.fillColor(lightText).fontSize(9).font('Helvetica').text('Original for Recipient', 50, 75);
 
-    // 1. Header Right (Client Details)
     doc.fillColor(textColor).fontSize(12).font('Helvetica-Bold').text(billData.clientCompanyName || 'Your Company Name', 250, 50, { align: 'right', width: 295 });
     doc.font('Helvetica').fontSize(9).fillColor(lightText);
     
@@ -121,34 +153,26 @@ function generateAndSendPDF(billData) {
     if (billData.clientState) doc.text(`State: ${billData.clientState}`, 250, 80, { align: 'right', width: 295 });
     if (billData.clientAddress) doc.text(`${billData.clientAddress}`, 250, 95, { align: 'right', width: 295 });
 
-    // Divider Line
     doc.moveTo(50, 130).lineTo(545, 130).lineWidth(1).strokeColor('#e2e8f0').stroke();
 
-    // 2. Billed To (Customer Details)
     doc.fillColor(textColor).fontSize(10).font('Helvetica-Bold').text('Billed To (Customer Details)', 50, 150);
     doc.font('Helvetica').fontSize(10).fillColor(lightText);
     doc.text(`${billData.customerName || 'N/A'}`, 50, 170);
     doc.text(`${billData.customerGST || ''}`, 50, 185);
     doc.text(`${billData.customerAddress || ''}`, 50, 200);
 
-    // 2. Invoice Details
     doc.fillColor(textColor).fontSize(10).font('Helvetica-Bold').text('Invoice Details', 300, 150);
     doc.font('Helvetica').fontSize(9).fillColor(lightText);
-
     doc.text(`Invoice No.:`, 300, 170);
     doc.fillColor(textColor).font('Helvetica-Bold').text(`${billData.invoiceNo || 'N/A'}`, 300, 185);
-
     doc.fillColor(lightText).font('Helvetica').text(`Invoice Date:`, 440, 170);
     doc.fillColor(textColor).font('Helvetica-Bold').text(`${new Date().toLocaleDateString()}`, 440, 185);
-
     doc.fillColor(lightText).font('Helvetica').text(`Type of Supply:`, 300, 205);
     doc.fillColor(textColor).font('Helvetica-Bold').text(`${billData.supplyType || 'Inter-State (Different State - IGST)'}`, 300, 215);
 
-    // 3. Table Header Background (Blue Strip)
     const tableTop = 250;
     doc.rect(50, tableTop, 495, 25).fill(primaryColor);
 
-    // 3. Table Header Text
     const headerY = tableTop + 8;
     doc.fillColor('#ffffff').fontSize(9).font('Helvetica-Bold');
     doc.text('Item Description / HSN', 60, headerY);
@@ -157,39 +181,34 @@ function generateAndSendPDF(billData) {
     doc.text('GST %', 400, headerY, { width: 40, align: 'center' });
     doc.text('Amount (Rs)', 460, headerY, { width: 75, align: 'right' });
 
-    // 4. Table Row Data
     const rowY = tableTop + 35;
     doc.fillColor(textColor).fontSize(9).font('Helvetica');
     doc.text(billData.itemName || 'N/A', 60, rowY, { width: 210 });
-    doc.text(billData.qty || '1', 280, rowY, { width: 40, align: 'center' });
-    doc.text(billData.rate || billData.taxableValue || billData.grandTotal || '0', 330, rowY, { width: 60, align: 'center' });
-    doc.text(`${billData.gstPercent || '18'}%`, 400, rowY, { width: 40, align: 'center' });
-    doc.text(billData.grandTotal || '0', 460, rowY, { width: 75, align: 'right' });
+    doc.text(cQty.toString(), 280, rowY, { width: 40, align: 'center' });
+    doc.text(strRate, 330, rowY, { width: 60, align: 'center' });
+    doc.text(`${cGstPct}%`, 400, rowY, { width: 40, align: 'center' });
+    doc.text(strTotal, 460, rowY, { width: 75, align: 'right' });
 
-    // Table Bottom Divider
     doc.moveTo(50, rowY + 20).lineTo(545, rowY + 20).lineWidth(1).strokeColor('#e2e8f0').stroke();
 
-    // 5. Total Calculation Box (Bottom Right)
     const totalBoxY = rowY + 40;
     doc.rect(320, totalBoxY, 225, 70).lineWidth(1).strokeColor('#e2e8f0').stroke();
 
     const taxY = totalBoxY + 10;
     doc.fillColor(lightText).fontSize(9).text('Taxable Value:', 330, taxY);
-    doc.fillColor(textColor).text(`Rs. ${billData.taxableValue || '0.00'}`, 460, taxY, { width: 75, align: 'right' });
+    doc.fillColor(textColor).text(`Rs. ${strTaxable}`, 460, taxY, { width: 75, align: 'right' });
 
     doc.fillColor(lightText).text('Tax Amount:', 330, taxY + 18);
-    doc.fillColor(textColor).text(`Rs. ${billData.taxAmount || '0.00'}`, 460, taxY + 18, { width: 75, align: 'right' });
+    doc.fillColor(textColor).text(`Rs. ${strTaxAmt}`, 460, taxY + 18, { width: 75, align: 'right' });
 
     const grandY = taxY + 40;
     doc.font('Helvetica-Bold').fontSize(11).fillColor(primaryColor).text('Grand Total:', 330, grandY);
-    doc.text(`Rs. ${billData.grandTotal || '0.00'}`, 440, grandY, { width: 95, align: 'right' });
-
-    // --- EXACT UI MATCHING DESIGN END ---
+    doc.text(`Rs. ${strTotal}`, 440, grandY, { width: 95, align: 'right' });
 
     doc.end();
 }
 
-// Routes
+// Routes (UNTOUCHED)
 app.post('/api/register', async (req, res) => {
     try {
         const { companyName, gstin, address, email, password } = req.body;
