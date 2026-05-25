@@ -17,7 +17,7 @@ mongoose.connect(mongoURI)
     .then(() => console.log("🟢 Cloud Database connected successfully!"))
     .catch((err) => console.log("🔴 DB Connection Error:", err.message));
 
-// Schemas
+// User Schema
 const userSchema = new mongoose.Schema({
     companyName: { type: String, required: true },
     gstin: String,
@@ -29,12 +29,16 @@ const userSchema = new mongoose.Schema({
 });
 const User = mongoose.model('User', userSchema);
 
+// Updated Bill Schema - 'Mixed' allows arrays (multiple rows) without squashing them
 const billSchema = new mongoose.Schema({
     clientCompanyName: String,
     customerName: String,
     customerGST: String,
     invoiceNo: String,
-    itemName: String,
+    itemName: mongoose.Schema.Types.Mixed, // Multi-row support
+    qty: mongoose.Schema.Types.Mixed,      // Multi-row support
+    rate: mongoose.Schema.Types.Mixed,     // Multi-row support
+    gstPercent: mongoose.Schema.Types.Mixed,// Multi-row support
     grandTotal: String,
     dateSaved: { type: Date, default: Date.now }
 }, { strict: false }); 
@@ -69,45 +73,69 @@ async function sendEmailViaScript(toEmail, subject, htmlContent, base64Attachmen
     }
 }
 
-// PDF Generation with REVERSE MATH LOGIC
+// PDF Generation with DYNAMIC MULTIPLE ROWS SUPPORT
 function generateAndSendPDF(billData) {
     const doc = new PDFDocument({ margin: 50, size: 'A4' });
     let buffers = [];
     
-    // --- THE FIX: Reverse Math Calculator ---
-    // Safely extract numbers, removing ₹ and commas
+    // Clean numbers securely
     const getNum = (val) => {
         if (!val) return 0;
         const cleaned = val.toString().replace(/[^0-9.]/g, ''); 
         return parseFloat(cleaned) || 0;
     };
 
-    let cTotal = getNum(billData.grandTotal);
-    let cQty = getNum(billData.qty) || 1;
-    let cGstPct = getNum(billData.gstPercent) || 18; // Default 18%
+    // Safely extract arrays from frontend data
+    const toArray = (val) => {
+        if (val === undefined || val === null || val === '') return [];
+        if (Array.isArray(val)) return val;
+        return [val];
+    };
 
-    let cTaxable = getNum(billData.taxableValue);
-    let cTaxAmt = getNum(billData.taxAmount);
-    let cRate = getNum(billData.rate);
-
-    // AGAR FRONTEND NE TAX NAHI BHEJA, TOH BACKEND REVERSE CALCULATE KAREGA
-    if (cTaxable === 0 && cTotal > 0) {
-        // Formula: Taxable = GrandTotal / (1 + (GST / 100))
-        cTaxable = cTotal / (1 + (cGstPct / 100));
-        cTaxAmt = cTotal - cTaxable;
+    let lineItems = [];
+    const itemNames = toArray(billData.itemName);
+    const qtys = toArray(billData.qty);
+    const rates = toArray(billData.rate);
+    const gsts = toArray(billData.gstPercent);
+    
+    // Loop through all items added in the frontend
+    let count = Math.max(itemNames.length, 1);
+    for (let i = 0; i < count; i++) {
+        lineItems.push({
+            name: itemNames[i] ? itemNames[i].toString().trim() : 'N/A',
+            qty: getNum(qtys[i] !== undefined ? qtys[i] : qtys[0]) || 1,
+            rate: getNum(rates[i] !== undefined ? rates[i] : rates[0]),
+            gst: getNum(gsts[i] !== undefined ? gsts[i] : gsts[0]) || 18
+        });
     }
 
-    // Rate = Taxable / Qty
-    if (cRate === 0 && cTaxable > 0) {
-        cRate = cTaxable / cQty;
-    }
+    let sumTaxable = 0;
+    let sumTaxAmt = 0;
+    let frontendTotal = getNum(billData.grandTotal);
+    
+    // Calculate individual row amounts dynamically
+    lineItems = lineItems.map(item => {
+        let base = item.rate * item.qty;
+        let tax = base * (item.gst / 100);
+        let rowTotal = base + tax;
+        
+        sumTaxable += base;
+        sumTaxAmt += tax;
+        
+        return {
+            ...item,
+            rateStr: item.rate.toFixed(2),
+            totalStr: rowTotal.toFixed(2)
+        };
+    });
 
-    // Convert to exactly 2 decimal places for PDF
-    const strRate = cRate.toFixed(2);
+    let cTaxable = getNum(billData.taxableValue) || sumTaxable;
+    let cTaxAmt = getNum(billData.taxAmount) || sumTaxAmt;
+    let cTotal = frontendTotal || (cTaxable + cTaxAmt);
+
     const strTaxable = cTaxable.toFixed(2);
     const strTaxAmt = cTaxAmt.toFixed(2);
     const strTotal = cTotal.toFixed(2);
-    // -----------------------------------------
 
     doc.on('data', buffers.push.bind(buffers));
     doc.on('end', async () => {
@@ -138,7 +166,7 @@ function generateAndSendPDF(billData) {
         }
     });
 
-    // --- PDF DESIGN START (UNTOUCHED) ---
+    // --- PDF DESIGN START ---
     const primaryColor = '#1d4ed8'; 
     const textColor = '#333333';
     const lightText = '#666666';
@@ -170,6 +198,7 @@ function generateAndSendPDF(billData) {
     doc.fillColor(lightText).font('Helvetica').text(`Type of Supply:`, 300, 205);
     doc.fillColor(textColor).font('Helvetica-Bold').text(`${billData.supplyType || 'Inter-State (Different State - IGST)'}`, 300, 215);
 
+    // Table Header
     const tableTop = 250;
     doc.rect(50, tableTop, 495, 25).fill(primaryColor);
 
@@ -181,17 +210,23 @@ function generateAndSendPDF(billData) {
     doc.text('GST %', 400, headerY, { width: 40, align: 'center' });
     doc.text('Amount (Rs)', 460, headerY, { width: 75, align: 'right' });
 
-    const rowY = tableTop + 35;
+    // Print all rows dynamically
+    let rowY = tableTop + 35;
     doc.fillColor(textColor).fontSize(9).font('Helvetica');
-    doc.text(billData.itemName || 'N/A', 60, rowY, { width: 210 });
-    doc.text(cQty.toString(), 280, rowY, { width: 40, align: 'center' });
-    doc.text(strRate, 330, rowY, { width: 60, align: 'center' });
-    doc.text(`${cGstPct}%`, 400, rowY, { width: 40, align: 'center' });
-    doc.text(strTotal, 460, rowY, { width: 75, align: 'right' });
+    
+    lineItems.forEach((item) => {
+        doc.text(item.name, 60, rowY, { width: 210 });
+        doc.text(item.qty.toString(), 280, rowY, { width: 40, align: 'center' });
+        doc.text(item.rateStr, 330, rowY, { width: 60, align: 'center' });
+        doc.text(`${item.gst}%`, 400, rowY, { width: 40, align: 'center' });
+        doc.text(item.totalStr, 460, rowY, { width: 75, align: 'right' });
+        rowY += 20; // Har item ke baad line niche jayegi
+    });
 
-    doc.moveTo(50, rowY + 20).lineTo(545, rowY + 20).lineWidth(1).strokeColor('#e2e8f0').stroke();
+    doc.moveTo(50, rowY).lineTo(545, rowY).lineWidth(1).strokeColor('#e2e8f0').stroke();
 
-    const totalBoxY = rowY + 40;
+    // Total Calculation Box dynamically positioned
+    const totalBoxY = rowY + 20;
     doc.rect(320, totalBoxY, 225, 70).lineWidth(1).strokeColor('#e2e8f0').stroke();
 
     const taxY = totalBoxY + 10;
@@ -208,7 +243,7 @@ function generateAndSendPDF(billData) {
     doc.end();
 }
 
-// Routes (UNTOUCHED)
+// Routes
 app.post('/api/register', async (req, res) => {
     try {
         const { companyName, gstin, address, email, password } = req.body;
@@ -229,7 +264,7 @@ app.post('/api/register', async (req, res) => {
             <div style="font-family: Arial, sans-serif; max-width: 600px; padding: 20px;">
                 <h2 style="color: #1d4ed8;">Welcome to Catalyst CA!</h2>
                 <p>Hello <strong>${companyName}</strong>,</p>
-                <p>Please click the button below to verify your email address. This step is required to activate your account and start generating invoices.</p>
+                <p>Please click the button below to verify your email address.</p>
                 <a href="${verificationLink}" style="display: inline-block; background-color: #1d4ed8; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold; margin-top: 15px;">Activate My Account</a>
             </div>
         `;
