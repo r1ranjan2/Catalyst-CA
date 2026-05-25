@@ -1,3 +1,4 @@
+HTML
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -9,8 +10,12 @@
     <style>
         @media print {
             .no-print { display: none !important; }
-            body { background-color: white; }
+            body, html { 
+                background-color: white; 
+                overflow: visible !important; 
+            }
             .max-w-5xl { box-shadow: none; border: none; padding: 0; }
+            ::-webkit-scrollbar { display: none !important; } /* Scrollbar Fix */
         }
     </style>
 </head>
@@ -247,7 +252,6 @@
                 const customerState = customerGSTInput.substring(0, 2);
                 const clientState = clientGST.substring(0, 2);
                 
-                // IGST only if digits are valid and match client
                 const isCustomerStateNumber = /^\d{2}$/.test(customerState);
 
                 if (isCustomerStateNumber && customerState !== clientState) {
@@ -292,17 +296,32 @@
             saveBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving...';
             saveBtn.disabled = true;
 
+            // ✅ YAHAN DATA BHEJNE KA TARIKA THEEK KIYA HAI (Arrays use kiye hain)
             const billData = {
                 clientCompanyName: clientName,
+                clientGST: clientGST,
+                clientState: getStateName(clientGST),
+                clientAddress: clientAddress,
                 customerName: document.getElementById('customerName').value,
                 customerGST: document.getElementById('customerGST').value,
+                customerAddress: document.getElementById('customerAddress').value,
                 invoiceNo: document.getElementById('invoiceNo').value,
-                itemName: items.map(i => i.name).join(', '),
+                supplyType: document.getElementById('supplyType').options[document.getElementById('supplyType').selectedIndex].text,
+                
+                // Pehle yahan sab jodd diya gaya tha, ab proper List (Array) jaa rahi hai backend ko
+                itemName: items.map(i => i.name),
+                qty: items.map(i => i.qty),
+                rate: items.map(i => i.rate),
+                gstPercent: items.map(i => i.gst),
+                
+                taxableValue: document.getElementById('totalTaxable').innerText,
+                taxAmount: (parseFloat(document.getElementById('totalCGST').innerText.replace(/[^0-9.]/g, '')) + 
+                            parseFloat(document.getElementById('totalSGST').innerText.replace(/[^0-9.]/g, '')) + 
+                            parseFloat(document.getElementById('totalIGST').innerText.replace(/[^0-9.]/g, ''))).toFixed(2),
                 grandTotal: document.getElementById('grandTotal').innerText
             };
 
             try {
-                // YAHAN LINK UPDATE KIYA GAYA HAI 
                 let response = await fetch('https://catalyst-ca.onrender.com/api/save-bill', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
