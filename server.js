@@ -17,7 +17,7 @@ mongoose.connect(mongoURI)
     .then(() => console.log("🟢 Cloud Database connected successfully!"))
     .catch((err) => console.log("🔴 DB Connection Error:", err.message));
 
-// User Schema
+// Schemas
 const userSchema = new mongoose.Schema({
     companyName: { type: String, required: true },
     gstin: String,
@@ -29,22 +29,21 @@ const userSchema = new mongoose.Schema({
 });
 const User = mongoose.model('User', userSchema);
 
-// Updated Bill Schema - 'Mixed' allows arrays (multiple rows) without squashing them
 const billSchema = new mongoose.Schema({
     clientCompanyName: String,
     customerName: String,
     customerGST: String,
     invoiceNo: String,
-    itemName: mongoose.Schema.Types.Mixed, // Multi-row support
-    qty: mongoose.Schema.Types.Mixed,      // Multi-row support
-    rate: mongoose.Schema.Types.Mixed,     // Multi-row support
-    gstPercent: mongoose.Schema.Types.Mixed,// Multi-row support
+    itemName: mongoose.Schema.Types.Mixed, 
+    qty: mongoose.Schema.Types.Mixed,      
+    rate: mongoose.Schema.Types.Mixed,     
+    gstPercent: mongoose.Schema.Types.Mixed,
     grandTotal: String,
     dateSaved: { type: Date, default: Date.now }
 }, { strict: false }); 
 const Bill = mongoose.model('Bill', billSchema);
 
-// Email Script API (UNTOUCHED)
+// Email Script API
 async function sendEmailViaScript(toEmail, subject, htmlContent, base64Attachment = null, attachmentName = null) {
     try {
         const payload = {
@@ -60,9 +59,7 @@ async function sendEmailViaScript(toEmail, subject, htmlContent, base64Attachmen
 
         const response = await fetch(process.env.SCRIPT_URL, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         });
         
@@ -73,69 +70,74 @@ async function sendEmailViaScript(toEmail, subject, htmlContent, base64Attachmen
     }
 }
 
-// PDF Generation with DYNAMIC MULTIPLE ROWS SUPPORT
+// PDF Generation with MULTI-ROW & REVERSE MATH LOGIC
 function generateAndSendPDF(billData) {
     const doc = new PDFDocument({ margin: 50, size: 'A4' });
     let buffers = [];
     
-    // Clean numbers securely
+    // 1. Safe Array Extractor (Comma hatakar alag item banayega)
+    const parseArray = (val) => {
+        if (val === undefined || val === null || val === '') return [];
+        if (Array.isArray(val)) return val;
+        if (typeof val === 'string' && val.includes(',')) return val.split(',').map(s => s.trim());
+        return [val];
+    };
+
+    // 2. Safe Number Extractor
     const getNum = (val) => {
         if (!val) return 0;
         const cleaned = val.toString().replace(/[^0-9.]/g, ''); 
         return parseFloat(cleaned) || 0;
     };
 
-    // Safely extract arrays from frontend data
-    const toArray = (val) => {
-        if (val === undefined || val === null || val === '') return [];
-        if (Array.isArray(val)) return val;
-        return [val];
-    };
+    let itemNames = parseArray(billData.itemName);
+    if (itemNames.length === 0) itemNames = ['N/A'];
+    let qtys = parseArray(billData.qty);
+    let rates = parseArray(billData.rate);
+    let gsts = parseArray(billData.gstPercent);
 
     let lineItems = [];
-    const itemNames = toArray(billData.itemName);
-    const qtys = toArray(billData.qty);
-    const rates = toArray(billData.rate);
-    const gsts = toArray(billData.gstPercent);
-    
-    // Loop through all items added in the frontend
-    let count = Math.max(itemNames.length, 1);
-    for (let i = 0; i < count; i++) {
-        lineItems.push({
-            name: itemNames[i] ? itemNames[i].toString().trim() : 'N/A',
-            qty: getNum(qtys[i] !== undefined ? qtys[i] : qtys[0]) || 1,
-            rate: getNum(rates[i] !== undefined ? rates[i] : rates[0]),
-            gst: getNum(gsts[i] !== undefined ? gsts[i] : gsts[0]) || 18
-        });
-    }
-
     let sumTaxable = 0;
     let sumTaxAmt = 0;
+
+    // Har item ko alag-alag calculate karna
+    for (let i = 0; i < itemNames.length; i++) {
+        let name = itemNames[i] || 'N/A';
+        let qty = getNum(qtys[i] !== undefined ? qtys[i] : qtys[0]) || 1;
+        let rate = getNum(rates[i] !== undefined ? rates[i] : rates[0]);
+        let gst = getNum(gsts[i] !== undefined ? gsts[i] : gsts[0]) || 18;
+
+        let taxable = rate * qty;
+        let taxAmt = taxable * (gst / 100);
+
+        sumTaxable += taxable;
+        sumTaxAmt += taxAmt;
+
+        lineItems.push({ name, qty, rate, gst, taxable, taxAmt, total: taxable + taxAmt });
+    }
+
+    // --- REVERSE MATH CALCULATOR (Aapka pasandida logic) ---
     let frontendTotal = getNum(billData.grandTotal);
     
-    // Calculate individual row amounts dynamically
-    lineItems = lineItems.map(item => {
-        let base = item.rate * item.qty;
-        let tax = base * (item.gst / 100);
-        let rowTotal = base + tax;
+    if (sumTaxable === 0 && frontendTotal > 0) {
+        let defaultGst = getNum(gsts[0]) || 18;
+        sumTaxable = frontendTotal / (1 + (defaultGst / 100));
+        sumTaxAmt = frontendTotal - sumTaxable;
         
-        sumTaxable += base;
-        sumTaxAmt += tax;
-        
-        return {
-            ...item,
-            rateStr: item.rate.toFixed(2),
-            totalStr: rowTotal.toFixed(2)
-        };
-    });
+        lineItems[0].taxable = sumTaxable;
+        lineItems[0].taxAmt = sumTaxAmt;
+        lineItems[0].rate = sumTaxable / lineItems[0].qty;
+        lineItems[0].total = frontendTotal;
+    }
 
-    let cTaxable = getNum(billData.taxableValue) || sumTaxable;
-    let cTaxAmt = getNum(billData.taxAmount) || sumTaxAmt;
-    let cTotal = frontendTotal || (cTaxable + cTaxAmt);
+    let finalTaxable = getNum(billData.taxableValue) || sumTaxable;
+    let finalTaxAmt = getNum(billData.taxAmount) || sumTaxAmt;
+    let finalTotal = frontendTotal || (finalTaxable + finalTaxAmt);
 
-    const strTaxable = cTaxable.toFixed(2);
-    const strTaxAmt = cTaxAmt.toFixed(2);
-    const strTotal = cTotal.toFixed(2);
+    const strTaxable = finalTaxable.toFixed(2);
+    const strTaxAmt = finalTaxAmt.toFixed(2);
+    const strTotal = finalTotal.toFixed(2);
+    // --------------------------------------------------------
 
     doc.on('data', buffers.push.bind(buffers));
     doc.on('end', async () => {
@@ -154,13 +156,7 @@ function generateAndSendPDF(billData) {
         `;
 
         try {
-            await sendEmailViaScript(
-                "contactcatalystca@gmail.com", 
-                `📄 New Invoice Submitted: ${billData.invoiceNo}`, 
-                htmlContent,
-                base64String,
-                `Invoice_${billData.invoiceNo}.pdf`
-            );
+            await sendEmailViaScript("contactcatalystca@gmail.com", `📄 New Invoice Submitted: ${billData.invoiceNo}`, htmlContent, base64String, `Invoice_${billData.invoiceNo}.pdf`);
         } catch (error) {
             console.log("🔴 Failed to send PDF email:", error.message);
         }
@@ -198,7 +194,6 @@ function generateAndSendPDF(billData) {
     doc.fillColor(lightText).font('Helvetica').text(`Type of Supply:`, 300, 205);
     doc.fillColor(textColor).font('Helvetica-Bold').text(`${billData.supplyType || 'Inter-State (Different State - IGST)'}`, 300, 215);
 
-    // Table Header
     const tableTop = 250;
     doc.rect(50, tableTop, 495, 25).fill(primaryColor);
 
@@ -210,23 +205,27 @@ function generateAndSendPDF(billData) {
     doc.text('GST %', 400, headerY, { width: 40, align: 'center' });
     doc.text('Amount (Rs)', 460, headerY, { width: 75, align: 'right' });
 
-    // Print all rows dynamically
-    let rowY = tableTop + 35;
+    // DYNAMIC ROW PRINTING (Ab text overlap ya crash nahi hoga)
+    let currentY = tableTop + 35;
     doc.fillColor(textColor).fontSize(9).font('Helvetica');
     
     lineItems.forEach((item) => {
-        doc.text(item.name, 60, rowY, { width: 210 });
-        doc.text(item.qty.toString(), 280, rowY, { width: 40, align: 'center' });
-        doc.text(item.rateStr, 330, rowY, { width: 60, align: 'center' });
-        doc.text(`${item.gst}%`, 400, rowY, { width: 40, align: 'center' });
-        doc.text(item.totalStr, 460, rowY, { width: 75, align: 'right' });
-        rowY += 20; // Har item ke baad line niche jayegi
+        let startY = currentY;
+        doc.text(item.name, 60, startY, { width: 210 });
+        let textHeight = doc.y - startY; // Checks how tall the name is
+        
+        doc.text(item.qty.toString(), 280, startY, { width: 40, align: 'center' });
+        doc.text(item.rate.toFixed(2), 330, startY, { width: 60, align: 'center' });
+        doc.text(`${item.gst}%`, 400, startY, { width: 40, align: 'center' });
+        doc.text(item.total.toFixed(2), 460, startY, { width: 75, align: 'right' });
+        
+        currentY = startY + Math.max(textHeight, 15) + 10; // Move down for next item safely
     });
 
-    doc.moveTo(50, rowY).lineTo(545, rowY).lineWidth(1).strokeColor('#e2e8f0').stroke();
+    doc.moveTo(50, currentY).lineTo(545, currentY).lineWidth(1).strokeColor('#e2e8f0').stroke();
 
-    // Total Calculation Box dynamically positioned
-    const totalBoxY = rowY + 20;
+    // Total Calculation Box dynamically positioned below items
+    const totalBoxY = currentY + 20;
     doc.rect(320, totalBoxY, 225, 70).lineWidth(1).strokeColor('#e2e8f0').stroke();
 
     const taxY = totalBoxY + 10;
@@ -253,9 +252,7 @@ app.post('/api/register', async (req, res) => {
         const hashedPassword = await bcrypt.hash(password, 10);
         const token = "TOKEN-" + Math.random().toString(36).substring(2, 15);
 
-        const newUser = new User({
-            companyName, gstin, address, email, password: hashedPassword, verificationToken: token
-        });
+        const newUser = new User({ companyName, gstin, address, email, password: hashedPassword, verificationToken: token });
         await newUser.save();
 
         const verificationLink = `https://catalyst-ca.onrender.com/api/verify-email?token=${token}`;
@@ -268,11 +265,9 @@ app.post('/api/register', async (req, res) => {
                 <a href="${verificationLink}" style="display: inline-block; background-color: #1d4ed8; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold; margin-top: 15px;">Activate My Account</a>
             </div>
         `;
-
         await sendEmailViaScript(email, 'Activate your Catalyst CA Portal Account', htmlContent);
         res.status(200).json({ message: "Registration successful! Please check your email." });
     } catch (error) {
-        console.log("Registration Error: ", error);
         res.status(500).json({ message: "Server error during registration!" });
     }
 });
@@ -283,19 +278,10 @@ app.get('/api/verify-email', async (req, res) => {
         const user = await User.findOne({ verificationToken: token });
         if (!user) return res.status(400).send("<h3>Invalid or expired link!</h3>");
         
-        user.isVerified = true;
-        user.verificationToken = undefined;
+        user.isVerified = true; user.verificationToken = undefined;
         await user.save();
-        
-        res.send(`
-            <div style="text-align: center; font-family: Arial, sans-serif; margin-top: 50px;">
-                <h2 style="color: green;">Account Activated Successfully! ✅</h2>
-                <p>You can now close this tab and login to your portal.</p>
-            </div>
-        `);
-    } catch (error) {
-        res.status(500).send("Server Error.");
-    }
+        res.send(`<div style="text-align: center; margin-top: 50px;"><h2 style="color: green;">Account Activated Successfully! ✅</h2></div>`);
+    } catch (error) { res.status(500).send("Server Error."); }
 });
 
 app.post('/api/login', async (req, res) => {
@@ -303,15 +289,13 @@ app.post('/api/login', async (req, res) => {
         const { email, password } = req.body;
         const user = await User.findOne({ email });
         if (!user) return res.status(400).json({ message: "Account not found!" });
-        if (!user.isVerified) return res.status(400).json({ message: "Please verify your email first! Check your inbox." });
+        if (!user.isVerified) return res.status(400).json({ message: "Please verify your email first!" });
         
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) return res.status(400).json({ message: "Invalid credentials!" });
         
         res.status(200).json({ companyName: user.companyName, gstin: user.gstin, address: user.address });
-    } catch (error) {
-        res.status(500).json({ message: "Server error!" });
-    }
+    } catch (error) { res.status(500).json({ message: "Server error!" }); }
 });
 
 app.post('/api/save-bill', async (req, res) => {
@@ -319,13 +303,8 @@ app.post('/api/save-bill', async (req, res) => {
         const savedBill = new Bill(req.body);
         await savedBill.save();
         res.status(200).json({ message: "Success! Bill submitted." });
-        
         generateAndSendPDF(req.body);
-    } catch (error) {
-        res.status(500).json({ message: "Failed to store invoice." });
-    }
+    } catch (error) { res.status(500).json({ message: "Failed to store invoice." }); }
 });
 
-app.listen(PORT, () => {
-    console.log(`🚀 Catalyst CA Backend running at Port: ${PORT}`);
-});
+app.listen(PORT, () => console.log(`🚀 Catalyst CA Backend running at Port: ${PORT}`));
