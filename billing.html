@@ -1,4 +1,3 @@
-HTML
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -10,12 +9,15 @@ HTML
     <style>
         @media print {
             .no-print { display: none !important; }
+            /* FIX: Browser default headers like Date, Title, "HTML" hide ho jayenge */
+            @page { margin: 0; }
             body, html { 
                 background-color: white; 
                 overflow: visible !important; 
+                padding: 1cm;
             }
             .max-w-5xl { box-shadow: none; border: none; padding: 0; }
-            ::-webkit-scrollbar { display: none !important; } /* Scrollbar Fix */
+            ::-webkit-scrollbar { display: none !important; }
         }
     </style>
 </head>
@@ -33,7 +35,7 @@ HTML
     <div class="max-w-5xl mx-auto bg-white p-8 rounded-xl shadow-md border border-slate-200 mb-12">
         <div class="flex justify-between items-start border-b border-blue-700 pb-6 mb-6">
             <div>
-                <h1 class="text-4xl font-black text-blue-800 tracking-tight">TAX INVOICE</h1>
+                <h1 class="text-3xl font-black text-blue-800 tracking-tight">TAX INVOICE</h1>
                 <p class="text-sm text-slate-500 mt-1 font-semibold">Original for Recipient</p>
             </div>
             <div class="text-right flex flex-col items-end">
@@ -44,7 +46,7 @@ HTML
                     <span class="font-semibold">State:</span>
                     <span id="headerClientState"></span>
                 </div>
-                <textarea id="clientAddress" class="mt-2 w-64 text-right text-sm p-1 border border-transparent rounded outline-none resize-none bg-transparent text-slate-600 pointer-events-none" rows="3" readonly></textarea>
+                <textarea id="clientAddress" class="mt-2 w-64 text-right text-sm p-1 border border-transparent rounded outline-none resize-none bg-transparent text-slate-600 pointer-events-none" rows="5" readonly></textarea>
             </div>
         </div>
 
@@ -296,7 +298,6 @@ HTML
             saveBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving...';
             saveBtn.disabled = true;
 
-            // ✅ YAHAN DATA BHEJNE KA TARIKA THEEK KIYA HAI (Arrays use kiye hain)
             const billData = {
                 clientCompanyName: clientName,
                 clientGST: clientGST,
@@ -308,7 +309,6 @@ HTML
                 invoiceNo: document.getElementById('invoiceNo').value,
                 supplyType: document.getElementById('supplyType').options[document.getElementById('supplyType').selectedIndex].text,
                 
-                // Pehle yahan sab jodd diya gaya tha, ab proper List (Array) jaa rahi hai backend ko
                 itemName: items.map(i => i.name),
                 qty: items.map(i => i.qty),
                 rate: items.map(i => i.rate),
