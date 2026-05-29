@@ -9,20 +9,19 @@
     <style>
         @media print {
             .no-print { display: none !important; }
-            /* FIX: Browser default headers like Date, Title, "HTML" hide ho jayenge */
             @page { margin: 0; }
             body, html { 
                 background-color: white; 
                 overflow: visible !important; 
-                padding: 1cm;
+                padding: 0.5cm;
             }
-            .max-w-5xl { box-shadow: none; border: none; padding: 0; }
+            .max-w-5xl { box-shadow: none; border: none; padding: 0; margin-bottom: 0 !important; }
             ::-webkit-scrollbar { display: none !important; }
         }
     </style>
 </head>
 <body class="bg-slate-50 font-sans antialiased">
-    <div class="no-print w-full bg-white shadow-sm p-4 flex justify-between items-center mb-8">
+    <div class="no-print w-full bg-white shadow-sm p-4 flex justify-between items-center mb-6">
         <div class="flex items-center gap-2">
             <i class="fa-solid fa-building text-2xl text-blue-700"></i>
             <span class="text-lg font-bold text-slate-700">Dashboard: <span id="displayClientName" class="text-blue-700 uppercase"></span></span>
@@ -32,47 +31,47 @@
         </button>
     </div>
 
-    <div class="max-w-5xl mx-auto bg-white p-8 rounded-xl shadow-md border border-slate-200 mb-12">
-        <div class="flex justify-between items-start border-b border-blue-700 pb-6 mb-6">
+    <div class="max-w-5xl mx-auto bg-white p-6 rounded-xl shadow-md border border-slate-200 print:mb-0 mb-12">
+        <div class="flex justify-between items-start border-b border-blue-700 pb-4 mb-4">
             <div>
-                <h1 class="text-3xl font-black text-blue-800 tracking-tight">TAX INVOICE</h1>
-                <p class="text-sm text-slate-500 mt-1 font-semibold">Original for Recipient</p>
+                <h1 class="text-2xl font-black text-blue-800 tracking-tight uppercase">TAX INVOICE</h1>
+                <p class="text-xs text-slate-500 mt-1 font-semibold">Original for Recipient</p>
             </div>
             <div class="text-right flex flex-col items-end">
-                <h2 id="headerClientName" class="text-2xl font-bold text-slate-800 uppercase"></h2>
-                <div class="grid grid-cols-2 gap-x-2 text-sm mt-2 text-slate-600 text-right w-full max-w-xs">
+                <h2 id="headerClientName" class="text-xl font-bold text-slate-800 uppercase"></h2>
+                <div class="grid grid-cols-2 gap-x-2 text-xs mt-1 text-slate-600 text-right w-full max-w-xs">
                     <span class="font-semibold">GSTIN:</span>
                     <span id="headerClientGST" class="uppercase"></span>
                     <span class="font-semibold">State:</span>
                     <span id="headerClientState"></span>
                 </div>
-                <textarea id="clientAddress" class="mt-2 w-64 text-right text-sm p-1 border border-transparent rounded outline-none resize-none bg-transparent text-slate-600 pointer-events-none" rows="5" readonly></textarea>
+                <textarea id="clientAddress" class="mt-1 w-64 text-right text-xs p-1 border border-transparent rounded outline-none resize-none bg-transparent text-slate-600 pointer-events-none" rows="4" readonly></textarea>
             </div>
         </div>
 
-        <div class="grid grid-cols-2 gap-12 mb-8">
-            <div class="space-y-3">
-                <h3 class="font-bold text-slate-700 mb-2 border-b pb-1">Billed To (Customer Details)</h3>
-                <input type="text" id="customerName" placeholder="Customer / Party Name" class="w-full px-3 py-2 border border-transparent hover:border-slate-300 focus:border-blue-500 rounded outline-none font-semibold text-slate-800 transition">
-                <input type="text" id="customerGST" oninput="calculateTotals()" placeholder="CUSTOMER GSTIN (OPTIONAL)" class="w-full px-3 py-2 border border-transparent hover:border-slate-300 focus:border-blue-500 rounded outline-none uppercase text-sm transition">
-                <textarea id="customerAddress" placeholder="Customer Address" rows="2" class="w-full px-3 py-2 border border-transparent hover:border-slate-300 focus:border-blue-500 rounded outline-none resize-none text-sm transition"></textarea>
+        <div class="grid grid-cols-2 gap-8 mb-6">
+            <div class="space-y-2">
+                <h3 class="font-bold text-slate-700 text-sm mb-1 border-b pb-1">Billed To (Customer Details)</h3>
+                <input type="text" id="customerName" placeholder="Customer / Party Name" class="w-full px-2 py-1 border border-transparent hover:border-slate-300 focus:border-blue-500 rounded outline-none font-semibold text-slate-800 transition text-sm">
+                <input type="text" id="customerGST" oninput="calculateTotals()" placeholder="CUSTOMER GSTIN (OPTIONAL)" class="w-full px-2 py-1 border border-transparent hover:border-slate-300 focus:border-blue-500 rounded outline-none uppercase text-xs transition">
+                <textarea id="customerAddress" placeholder="Customer Address" rows="2" class="w-full px-2 py-1 border border-transparent hover:border-slate-300 focus:border-blue-500 rounded outline-none resize-none text-xs transition"></textarea>
             </div>
 
-            <div class="space-y-3">
-                <h3 class="font-bold text-slate-700 mb-2 border-b pb-1">Invoice Details</h3>
+            <div class="space-y-2">
+                <h3 class="font-bold text-slate-700 text-sm mb-1 border-b pb-1">Invoice Details</h3>
                 <div class="grid grid-cols-2 gap-4">
                     <div>
-                        <label class="block text-xs text-slate-500 mb-1 ml-3">Invoice No.</label>
-                        <input type="text" id="invoiceNo" value="INV-001" class="w-full px-3 py-2 border border-transparent hover:border-slate-300 focus:border-blue-500 rounded outline-none font-semibold transition">
+                        <label class="block text-[10px] text-slate-500 mb-1 ml-2">Invoice No.</label>
+                        <input type="text" id="invoiceNo" value="INV-001" class="w-full px-2 py-1 border border-transparent hover:border-slate-300 focus:border-blue-500 rounded outline-none font-semibold transition text-sm">
                     </div>
                     <div>
-                        <label class="block text-xs text-slate-500 mb-1 ml-3">Invoice Date</label>
-                        <input type="date" id="invoiceDate" class="w-full px-3 py-2 border border-transparent hover:border-slate-300 focus:border-blue-500 rounded outline-none text-sm transition">
+                        <label class="block text-[10px] text-slate-500 mb-1 ml-2">Invoice Date</label>
+                        <input type="date" id="invoiceDate" class="w-full px-2 py-1 border border-transparent hover:border-slate-300 focus:border-blue-500 rounded outline-none text-sm transition">
                     </div>
                 </div>
-                <div>
-                    <label class="block text-xs text-slate-500 mb-1 ml-3">Type of Supply</label>
-                    <select id="supplyType" class="w-full px-3 py-2 border border-transparent rounded outline-none bg-slate-50 text-sm pointer-events-none appearance-none" disabled>
+                <div class="flex items-center mt-2">
+                    <label class="text-[10px] text-slate-500 whitespace-nowrap ml-2 mr-2">Type of Supply :</label>
+                    <select id="supplyType" class="flex-grow px-2 py-1 border border-transparent rounded outline-none bg-slate-50 text-xs pointer-events-none appearance-none font-semibold text-slate-800" disabled>
                         <option value="intra">Intra-State (Same State - CGST/SGST)</option>
                         <option value="inter">Inter-State (Different State - IGST)</option>
                     </select>
@@ -80,67 +79,69 @@
             </div>
         </div>
 
-        <div class="mb-6">
-            <div class="bg-blue-800 text-white flex text-sm font-bold p-3 rounded-t-lg">
-                <div class="flex-grow pl-2">Item Description / HSN</div>
-                <div class="w-24 text-center">Qty</div>
-                <div class="w-32 text-center">Rate (₹)</div>
-                <div class="w-32 text-center">GST %</div>
-                <div class="w-32 text-right pr-6">Amount (₹)</div>
-                <div class="w-8 no-print"></div>
+        <div class="mb-4">
+            <div class="bg-blue-800 text-white flex text-xs font-bold p-2 rounded-t-lg">
+                <div class="flex-grow pl-2">Item Description</div>
+                <div class="w-20 text-center">HSN</div>
+                <div class="w-16 text-center">Qty</div>
+                <div class="w-24 text-center">Rate (₹)</div>
+                <div class="w-20 text-center">GST %</div>
+                <div class="w-28 text-right pr-4">Amount (₹)</div>
+                <div class="w-6 no-print"></div>
             </div>
             
-            <div id="itemsContainer" class="border border-t-0 border-slate-300 rounded-b-lg p-2 space-y-2">
+            <div id="itemsContainer" class="border border-t-0 border-slate-300 rounded-b-lg p-1 space-y-1">
             </div>
         </div>
 
-        <button onclick="addItem()" class="no-print text-blue-600 border border-blue-600 hover:bg-blue-50 px-4 py-2 rounded font-semibold text-sm transition flex items-center gap-2 mb-8">
+        <button onclick="addItem()" class="no-print text-blue-600 border border-blue-600 hover:bg-blue-50 px-3 py-1.5 rounded font-semibold text-xs transition flex items-center gap-2 mb-6">
             <i class="fa-solid fa-plus"></i> Add Another Item
         </button>
 
-        <div class="flex justify-end mb-8">
-            <div class="w-80 bg-slate-50 border border-slate-300 rounded-lg p-4">
-                <div class="flex justify-between text-sm text-slate-600 mb-2">
+        <div class="flex justify-between items-start mb-4 gap-6">
+            <div class="flex-grow bg-slate-50 border border-slate-200 rounded-lg p-3 h-full">
+                <h4 class="font-bold text-slate-700 text-xs mb-1"><i class="fa-solid fa-file-contract"></i> Terms & Conditions</h4>
+                <textarea id="termsInput" rows="7" class="w-full bg-transparent border border-transparent hover:border-slate-300 focus:border-blue-500 focus:bg-white rounded outline-none resize-none text-[10px] text-slate-600 transition p-1"></textarea>
+                <p class="text-[9px] text-slate-400 mt-1 no-print">* Changes here will be saved automatically for your next bill.</p>
+            </div>
+
+            <div class="w-72 bg-slate-50 border border-slate-300 rounded-lg p-3 flex-shrink-0">
+                <div class="flex justify-between text-xs text-slate-600 mb-1">
                     <span>Taxable Value:</span>
                     <span id="totalTaxable">₹0.00</span>
                 </div>
-                
-                <div id="cgstRow" class="flex justify-between text-sm text-slate-600 mb-2">
+                <div id="cgstRow" class="flex justify-between text-xs text-slate-600 mb-1">
                     <span>CGST:</span>
                     <span id="totalCGST">₹0.00</span>
                 </div>
-                <div id="sgstRow" class="flex justify-between text-sm text-slate-600 mb-2">
+                <div id="sgstRow" class="flex justify-between text-xs text-slate-600 mb-1">
                     <span>SGST:</span>
                     <span id="totalSGST">₹0.00</span>
                 </div>
-                
-                <div id="igstRow" class="hidden justify-between text-sm text-slate-600 mb-2">
+                <div id="igstRow" class="hidden justify-between text-xs text-slate-600 mb-1">
                     <span>IGST:</span>
                     <span id="totalIGST">₹0.00</span>
                 </div>
-
                 <div class="border-t border-slate-300 my-2"></div>
-                <div class="flex justify-between text-lg font-bold text-blue-900">
+                <div class="flex justify-between text-base font-bold text-blue-900">
                     <span>Grand Total:</span>
                     <span id="grandTotal">₹0.00</span>
                 </div>
             </div>
         </div>
 
-        <div class="border-t border-slate-200 mt-12 pt-4 text-center">
-            <p class="text-xs text-slate-500 italic">This is a computer-generated invoice and does not require a physical signature.</p>
+        <div class="border-t border-slate-200 mt-4 pt-2 text-center">
+            <p class="text-[9px] text-slate-500 italic">This is a computer-generated invoice and does not require a physical signature.</p>
         </div>
 
-        <div class="flex justify-end gap-4 mt-8 no-print">
-            <button onclick="clearBill()" class="bg-red-50 text-red-600 hover:bg-red-100 font-bold py-3 px-6 rounded transition flex items-center gap-2">
+        <div class="flex justify-end gap-3 mt-6 no-print">
+            <button onclick="clearBill()" class="bg-red-50 text-red-600 hover:bg-red-100 font-bold py-2 px-4 rounded text-sm transition flex items-center gap-2">
                 <i class="fa-solid fa-broom"></i> Clear / New Bill
             </button>
-            
-            <button onclick="window.print()" class="bg-slate-700 hover:bg-slate-800 text-white font-bold py-3 px-8 rounded shadow-lg transition flex items-center gap-2">
+            <button onclick="window.print()" class="bg-slate-700 hover:bg-slate-800 text-white font-bold py-2 px-6 rounded text-sm shadow-md transition flex items-center gap-2">
                 <i class="fa-solid fa-print"></i> Print / Download PDF
             </button>
-            
-            <button id="saveBtn" onclick="saveBill()" class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-8 rounded shadow-lg transition flex items-center gap-2">
+            <button id="saveBtn" onclick="saveBill()" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded text-sm shadow-md transition flex items-center gap-2">
                 <i class="fa-solid fa-cloud-arrow-up"></i> Save & Submit to CA
             </button>
         </div>
@@ -151,31 +152,30 @@
         const clientGST = localStorage.getItem('activeClientGST');
         const clientAddress = localStorage.getItem('activeClientAddress');
         
-        if (!clientName) {
-            window.location.href = "login.html";
-        }
+        if (!clientName) window.location.href = "login.html";
 
         document.getElementById('displayClientName').innerText = clientName;
         document.getElementById('headerClientName').innerText = clientName;
         document.getElementById('headerClientGST').innerText = clientGST || "N/A";
         document.getElementById('clientAddress').value = clientAddress || "Address not provided";
 
+        const defaultTerms = "1. Any disputes will be under Local jurisdiction.\n2. Goods once sold will not be taken back.\n3. Payment shall be made within 15 days from the date of invoice; otherwise interest @ 18% per annum will be charged.\n4. All warranties are as per company rules.\nE. & O. E.";
+        const savedTerms = localStorage.getItem('savedInvoiceTerms') || defaultTerms;
+        document.getElementById('termsInput').value = savedTerms;
+
         function getStateName(gstin) {
             if(!gstin || gstin.length < 2) return "Unknown State";
-            const stateCodes = {
-                "03": "Punjab", "04": "Chandigarh", "06": "Haryana", "07": "Delhi", "08": "Rajasthan", "09": "Uttar Pradesh", "27": "Maharashtra", "29": "Karnataka"
-            };
+            const stateCodes = { "03": "Punjab", "04": "Chandigarh", "06": "Haryana", "07": "Delhi", "08": "Rajasthan", "09": "Uttar Pradesh", "27": "Maharashtra", "29": "Karnataka" };
             return stateCodes[gstin.substring(0,2)] || "State Code: " + gstin.substring(0,2);
         }
         document.getElementById('headerClientState').innerText = getStateName(clientGST);
-
         document.getElementById('invoiceDate').valueAsDate = new Date();
 
         let items = [];
 
         function addItem() {
             const id = Date.now();
-            items.push({ id, name: '', qty: 1, rate: 0, gst: 18 });
+            items.push({ id, name: '', hsn: '', qty: 1, rate: 0, gst: 18 });
             renderItems();
         }
 
@@ -187,7 +187,8 @@
         function updateItem(id, field, value) {
             const item = items.find(i => i.id === id);
             if (item) {
-                item[field] = field === 'name' ? value : parseFloat(value) || 0;
+                if (field === 'name' || field === 'hsn') item[field] = value;
+                else item[field] = parseFloat(value) || 0;
                 calculateTotals();
             }
         }
@@ -202,22 +203,21 @@
                 const total = amount + gstAmount;
 
                 const row = document.createElement('div');
-                row.className = 'flex items-center gap-2 p-1 rounded hover:bg-slate-50 transition border border-transparent';
+                row.className = 'flex items-center gap-1 p-1 rounded hover:bg-slate-50 transition border border-transparent';
                 row.innerHTML = `
-                    <input type="text" value="${item.name}" oninput="updateItem(${item.id}, 'name', this.value)" placeholder="Item Description" class="flex-grow px-3 py-2 border border-slate-200 rounded focus:border-blue-500 outline-none text-sm">
-                    <input type="number" value="${item.qty}" min="1" oninput="updateItem(${item.id}, 'qty', this.value)" class="w-24 px-3 py-2 border border-slate-200 rounded focus:border-blue-500 outline-none text-sm text-center">
-                    <input type="number" value="${item.rate}" min="0" oninput="updateItem(${item.id}, 'rate', this.value)" class="w-32 px-3 py-2 border border-slate-200 rounded focus:border-blue-500 outline-none text-sm text-right">
-                    <select onchange="updateItem(${item.id}, 'gst', this.value)" class="w-32 px-3 py-2 border border-slate-200 rounded focus:border-blue-500 outline-none text-sm bg-white">
+                    <input type="text" value="${item.name}" oninput="updateItem(${item.id}, 'name', this.value)" placeholder="Item Description" class="flex-grow px-2 py-1 border border-slate-200 rounded focus:border-blue-500 outline-none text-xs">
+                    <input type="text" value="${item.hsn}" oninput="updateItem(${item.id}, 'hsn', this.value)" placeholder="HSN" class="w-20 px-2 py-1 border border-slate-200 rounded focus:border-blue-500 outline-none text-xs text-center">
+                    <input type="number" value="${item.qty}" min="1" oninput="updateItem(${item.id}, 'qty', this.value)" class="w-16 px-2 py-1 border border-slate-200 rounded focus:border-blue-500 outline-none text-xs text-center">
+                    <input type="number" value="${item.rate}" min="0" oninput="updateItem(${item.id}, 'rate', this.value)" class="w-24 px-2 py-1 border border-slate-200 rounded focus:border-blue-500 outline-none text-xs text-right">
+                    <select onchange="updateItem(${item.id}, 'gst', this.value)" class="w-20 px-2 py-1 border border-slate-200 rounded focus:border-blue-500 outline-none text-xs bg-white">
                         <option value="0" ${item.gst === 0 ? 'selected' : ''}>0%</option>
                         <option value="5" ${item.gst === 5 ? 'selected' : ''}>5%</option>
                         <option value="12" ${item.gst === 12 ? 'selected' : ''}>12%</option>
                         <option value="18" ${item.gst === 18 ? 'selected' : ''}>18%</option>
                         <option value="28" ${item.gst === 28 ? 'selected' : ''}>28%</option>
                     </select>
-                    <div id="row-total-${item.id}" class="w-32 text-right pr-6 font-semibold text-slate-700 text-sm">₹${total.toFixed(2)}</div>
-                    <button onclick="removeItem(${item.id})" class="w-8 text-red-400 hover:text-red-600 transition no-print">
-                        <i class="fa-solid fa-trash-can"></i>
-                    </button>
+                    <div id="row-total-${item.id}" class="w-28 text-right pr-4 font-semibold text-slate-700 text-xs">₹${total.toFixed(2)}</div>
+                    <button onclick="removeItem(${item.id})" class="w-6 text-red-400 hover:text-red-600 transition no-print"><i class="fa-solid fa-trash-can text-sm"></i></button>
                 `;
                 container.appendChild(row);
             });
@@ -232,14 +232,10 @@
                 const amount = item.qty * item.rate;
                 const itemGstAmount = amount * (item.gst / 100);
                 const itemTotal = amount + itemGstAmount;
-
                 taxable += amount;
                 totalGstAmount += itemGstAmount;
-
                 const rowTotalElement = document.getElementById(`row-total-${item.id}`);
-                if(rowTotalElement) {
-                    rowTotalElement.innerText = '₹' + itemTotal.toFixed(2);
-                }
+                if(rowTotalElement) rowTotalElement.innerText = '₹' + itemTotal.toFixed(2);
             });
 
             const customerGSTInput = document.getElementById('customerGST').value.toUpperCase();
@@ -249,16 +245,11 @@
             const igstRow = document.getElementById('igstRow');
 
             let isInterState = false;
-
             if (customerGSTInput && customerGSTInput.length >= 2 && clientGST && clientGST.length >= 2) {
                 const customerState = customerGSTInput.substring(0, 2);
                 const clientState = clientGST.substring(0, 2);
-                
                 const isCustomerStateNumber = /^\d{2}$/.test(customerState);
-
-                if (isCustomerStateNumber && customerState !== clientState) {
-                    isInterState = true;
-                }
+                if (isCustomerStateNumber && customerState !== clientState) isInterState = true;
             }
 
             if (isInterState) {
@@ -272,22 +263,18 @@
                 cgstRow.classList.replace('hidden', 'flex');
                 sgstRow.classList.replace('hidden', 'flex');
                 igstRow.classList.replace('flex', 'hidden');
-
                 const halfGst = totalGstAmount / 2;
                 document.getElementById('totalCGST').innerText = '₹' + halfGst.toFixed(2);
                 document.getElementById('totalSGST').innerText = '₹' + halfGst.toFixed(2);
             }
 
             const grand = taxable + totalGstAmount;
-            
             document.getElementById('totalTaxable').innerText = '₹' + taxable.toFixed(2);
             document.getElementById('grandTotal').innerText = '₹' + grand.toFixed(2);
         }
 
         function clearBill() {
-            if(confirm("Are you sure you want to clear this bill?")) {
-                window.location.reload();
-            }
+            if(confirm("Are you sure you want to clear this bill?")) window.location.reload();
         }
 
         async function saveBill() {
@@ -297,6 +284,9 @@
             const saveBtn = document.getElementById('saveBtn');
             saveBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving...';
             saveBtn.disabled = true;
+
+            const currentTerms = document.getElementById('termsInput').value;
+            localStorage.setItem('savedInvoiceTerms', currentTerms);
 
             const billData = {
                 clientCompanyName: clientName,
@@ -308,8 +298,10 @@
                 customerAddress: document.getElementById('customerAddress').value,
                 invoiceNo: document.getElementById('invoiceNo').value,
                 supplyType: document.getElementById('supplyType').options[document.getElementById('supplyType').selectedIndex].text,
+                terms: currentTerms,
                 
                 itemName: items.map(i => i.name),
+                hsn: items.map(i => i.hsn),
                 qty: items.map(i => i.qty),
                 rate: items.map(i => i.rate),
                 gstPercent: items.map(i => i.gst),
@@ -348,7 +340,6 @@
             localStorage.clear();
             window.location.href = "login.html";
         }
-
         addItem();
     </script>
 </body>
