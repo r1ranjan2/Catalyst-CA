@@ -71,7 +71,7 @@
                 </div>
                 <div class="flex items-center mt-2">
                     <label class="text-[10px] text-slate-500 whitespace-nowrap ml-2 mr-2">Type of Supply :</label>
-                    <select id="supplyType" class="flex-grow px-2 py-1 border border-transparent rounded outline-none bg-slate-50 text-xs pointer-events-none appearance-none font-semibold text-slate-800" disabled>
+                    <select id="supplyType" onchange="calculateTotals()" class="flex-grow px-2 py-1 border border-slate-200 hover:border-slate-300 focus:border-blue-500 rounded outline-none bg-white text-xs font-semibold text-slate-800 transition">
                         <option value="intra">Intra-State (Same State - CGST/SGST)</option>
                         <option value="inter">Inter-State (Different State - IGST)</option>
                     </select>
@@ -245,21 +245,39 @@
             const igstRow = document.getElementById('igstRow');
 
             let isInterState = false;
+            let isAutoDetermined = false;
+
+            // SMART LOGIC: Auto-check GST if present
             if (customerGSTInput && customerGSTInput.length >= 2 && clientGST && clientGST.length >= 2) {
                 const customerState = customerGSTInput.substring(0, 2);
                 const clientState = clientGST.substring(0, 2);
                 const isCustomerStateNumber = /^\d{2}$/.test(customerState);
-                if (isCustomerStateNumber && customerState !== clientState) isInterState = true;
+                if (isCustomerStateNumber) {
+                    isInterState = (customerState !== clientState);
+                    isAutoDetermined = true;
+                }
             }
 
+            // SMART LOGIC: Lock if Auto, Unlock if Manual (Empty GST)
+            if (isAutoDetermined) {
+                supplyTypeSelect.value = isInterState ? 'inter' : 'intra';
+                supplyTypeSelect.disabled = true;
+                supplyTypeSelect.classList.add('bg-slate-100', 'pointer-events-none');
+                supplyTypeSelect.classList.remove('bg-white');
+            } else {
+                supplyTypeSelect.disabled = false;
+                supplyTypeSelect.classList.remove('bg-slate-100', 'pointer-events-none');
+                supplyTypeSelect.classList.add('bg-white');
+                isInterState = (supplyTypeSelect.value === 'inter'); // Read from manual selection
+            }
+
+            // Display proper rows
             if (isInterState) {
-                supplyTypeSelect.value = 'inter';
                 cgstRow.classList.replace('flex', 'hidden');
                 sgstRow.classList.replace('flex', 'hidden');
                 igstRow.classList.replace('hidden', 'flex');
                 document.getElementById('totalIGST').innerText = '₹' + totalGstAmount.toFixed(2);
             } else {
-                supplyTypeSelect.value = 'intra';
                 cgstRow.classList.replace('hidden', 'flex');
                 sgstRow.classList.replace('hidden', 'flex');
                 igstRow.classList.replace('flex', 'hidden');

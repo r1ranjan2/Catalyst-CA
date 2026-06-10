@@ -240,20 +240,37 @@ function generateAndSendPDF(billData) {
     doc.moveTo(50, currentY).lineTo(545, currentY).lineWidth(1).strokeColor('#e2e8f0').stroke();
 
     const totalBoxY = currentY + 15;
-    doc.rect(320, totalBoxY, 225, 65).lineWidth(1).strokeColor('#e2e8f0').stroke();
+    // SMART LOGIC: Box height badha di taaki CGST/SGST dono perfectly fit ho jayein
+    doc.rect(320, totalBoxY, 225, 75).lineWidth(1).strokeColor('#e2e8f0').stroke();
 
     const taxY = totalBoxY + 8;
     doc.fillColor(lightText).fontSize(8).text('Taxable Value:', 330, taxY);
     doc.fillColor(textColor).text(`Rs. ${strTaxable}`, 460, taxY, { width: 75, align: 'right' });
 
-    doc.fillColor(lightText).text('Tax Amount:', 330, taxY + 18);
-    doc.fillColor(textColor).text(`Rs. ${strTaxAmt}`, 460, taxY + 18, { width: 75, align: 'right' });
+    let nextY = taxY + 16;
+    const isIgst = billData.supplyType && billData.supplyType.includes('IGST');
 
-    const grandY = taxY + 35;
+    // SMART LOGIC: PDF Draw Break-up (IGST vs CGST/SGST)
+    if (isIgst) {
+        doc.fillColor(lightText).text('IGST:', 330, nextY);
+        doc.fillColor(textColor).text(`Rs. ${strTaxAmt}`, 460, nextY, { width: 75, align: 'right' });
+        nextY += 16;
+    } else {
+        const halfTax = (finalTaxAmt / 2).toFixed(2);
+        doc.fillColor(lightText).text('CGST:', 330, nextY);
+        doc.fillColor(textColor).text(`Rs. ${halfTax}`, 460, nextY, { width: 75, align: 'right' });
+        nextY += 16;
+        doc.fillColor(lightText).text('SGST:', 330, nextY);
+        doc.fillColor(textColor).text(`Rs. ${halfTax}`, 460, nextY, { width: 75, align: 'right' });
+        nextY += 16;
+    }
+
+    const grandY = taxY + 52;
+    doc.moveTo(320, grandY - 6).lineTo(545, grandY - 6).lineWidth(1).strokeColor('#e2e8f0').stroke();
     doc.font('Helvetica-Bold').fontSize(10).fillColor(primaryColor).text('Grand Total:', 330, grandY);
     doc.text(`Rs. ${strTotal}`, 440, grandY, { width: 95, align: 'right' });
 
-    const footerY = Math.max(totalBoxY + 80, currentY + 100);
+    const footerY = Math.max(totalBoxY + 90, currentY + 110);
     
     doc.rect(50, footerY, 495, 100).lineWidth(1).strokeColor('#e2e8f0').stroke();
     doc.fillColor(primaryColor).font('Helvetica-Bold').fontSize(8).text('Terms & Conditions', 60, footerY + 8);
