@@ -45,7 +45,7 @@
                     <span class="font-semibold">State:</span>
                     <span id="headerClientState"></span>
                 </div>
-                <textarea id="clientAddress" class="mt-1 w-64 text-right text-xs p-1 border border-transparent rounded outline-none resize-none bg-transparent text-slate-600 pointer-events-none" rows="4" readonly></textarea>
+                <textarea id="clientAddress" class="mt-1 w-64 text-right text-xs p-1 border border-transparent rounded outline-none resize-none bg-transparent text-slate-600 pointer-events-none" rows="6" readonly></textarea>
             </div>
         </div>
 
@@ -151,6 +151,8 @@
         const clientName = localStorage.getItem('activeClientName');
         const clientGST = localStorage.getItem('activeClientGST');
         const clientAddress = localStorage.getItem('activeClientAddress');
+        // SMART LOGIC: Retrieve email from local storage
+        const clientEmail = localStorage.getItem('activeClientEmail'); 
         
         if (!clientName) window.location.href = "login.html";
 
@@ -247,7 +249,6 @@
             let isInterState = false;
             let isAutoDetermined = false;
 
-            // SMART LOGIC: Auto-check GST if present
             if (customerGSTInput && customerGSTInput.length >= 2 && clientGST && clientGST.length >= 2) {
                 const customerState = customerGSTInput.substring(0, 2);
                 const clientState = clientGST.substring(0, 2);
@@ -258,7 +259,6 @@
                 }
             }
 
-            // SMART LOGIC: Lock if Auto, Unlock if Manual (Empty GST)
             if (isAutoDetermined) {
                 supplyTypeSelect.value = isInterState ? 'inter' : 'intra';
                 supplyTypeSelect.disabled = true;
@@ -268,10 +268,9 @@
                 supplyTypeSelect.disabled = false;
                 supplyTypeSelect.classList.remove('bg-slate-100', 'pointer-events-none');
                 supplyTypeSelect.classList.add('bg-white');
-                isInterState = (supplyTypeSelect.value === 'inter'); // Read from manual selection
+                isInterState = (supplyTypeSelect.value === 'inter'); 
             }
 
-            // Display proper rows
             if (isInterState) {
                 cgstRow.classList.replace('flex', 'hidden');
                 sgstRow.classList.replace('flex', 'hidden');
@@ -311,6 +310,7 @@
                 clientGST: clientGST,
                 clientState: getStateName(clientGST),
                 clientAddress: clientAddress,
+                clientEmail: clientEmail, // SMART LOGIC: Passing Email to Backend
                 customerName: document.getElementById('customerName').value,
                 customerGST: document.getElementById('customerGST').value,
                 customerAddress: document.getElementById('customerAddress').value,

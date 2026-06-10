@@ -162,6 +162,8 @@
                         localStorage.setItem('activeClientName', result.companyName);
                         localStorage.setItem('activeClientGST', result.gstin || '');
                         localStorage.setItem('activeClientAddress', result.address || ''); 
+                        // YEH NAYI LINE ADD KI HAI 👇
+                        localStorage.setItem('activeClientEmail', result.email); 
                         window.location.href = "billing.html";
                     } else {
                         alert("❌ " + result.message);

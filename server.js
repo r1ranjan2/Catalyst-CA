@@ -161,16 +161,22 @@ function generateAndSendPDF(billData) {
         const htmlContent = `
             <div style="font-family: Arial, sans-serif; max-width: 600px; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
                 <h2 style="color: #1e3a8a;">New Invoice Received!</h2>
-                <p>A client has submitted a new tax invoice on the portal.</p>
+                <p>Tax invoice generated successfully on Catalyst CA Portal.</p>
                 <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 16px 0;" />
-                <p><strong>Client Company:</strong> ${billData.clientCompanyName || 'N/A'}</p>
+                <p><strong>Billed By:</strong> ${billData.clientCompanyName || 'N/A'}</p>
                 <p><strong>Invoice No:</strong> ${billData.invoiceNo || 'N/A'}</p>
                 <p><strong>Grand Total:</strong> Rs. ${strTotal}</p>
             </div>
         `;
 
         try {
-            await sendEmailViaScript("contactcatalystca@gmail.com", `📄 New Invoice Submitted: ${billData.invoiceNo}`, htmlContent, base64String, `Invoice_${billData.invoiceNo}.pdf`);
+            // SMART LOGIC: Single request for both emails using Comma separated values
+            let targetEmails = "contactcatalystca@gmail.com";
+            if (billData.clientEmail) {
+                targetEmails += `,${billData.clientEmail}`;
+            }
+
+            await sendEmailViaScript(targetEmails, `📄 Invoice Copy: ${billData.invoiceNo}`, htmlContent, base64String, `Invoice_${billData.invoiceNo}.pdf`);
         } catch (error) {
             console.log("🔴 Failed to send PDF email:", error.message);
         }
@@ -188,27 +194,32 @@ function generateAndSendPDF(billData) {
     
     if (billData.clientGST) doc.text(`GSTIN: ${billData.clientGST}`, 250, 56, { align: 'right', width: 295 });
     if (billData.clientState) doc.text(`State: ${billData.clientState}`, 250, 68, { align: 'right', width: 295 });
-    if (billData.clientAddress) doc.text(`${billData.clientAddress}`, 250, 80, { align: 'right', width: 295 });
-
-    doc.moveTo(50, 130).lineTo(545, 130).lineWidth(1).strokeColor('#e2e8f0').stroke();
-
-    doc.fillColor(textColor).fontSize(9).font('Helvetica-Bold').text('Billed To (Customer Details)', 50, 150);
-    doc.font('Helvetica').fontSize(9).fillColor(lightText);
-    doc.text(`${billData.customerName || 'N/A'}`, 50, 170);
-    doc.text(`${billData.customerGST || ''}`, 50, 185);
-    doc.text(`${billData.customerAddress || ''}`, 50, 200);
-
-    doc.fillColor(textColor).fontSize(9).font('Helvetica-Bold').text('Invoice Details', 300, 150);
-    doc.font('Helvetica').fontSize(8).fillColor(lightText);
-    doc.text(`Invoice No.:`, 300, 170);
-    doc.fillColor(textColor).font('Helvetica-Bold').text(`${billData.invoiceNo || 'N/A'}`, 300, 185);
-    doc.fillColor(lightText).font('Helvetica').text(`Invoice Date:`, 440, 170);
-    doc.fillColor(textColor).font('Helvetica-Bold').text(`${new Date().toLocaleDateString()}`, 440, 185);
     
-    doc.fillColor(lightText).font('Helvetica').text(`Type of Supply:`, 300, 210);
-    doc.fillColor(textColor).font('Helvetica-Bold').text(`${billData.supplyType || 'Inter-State (Different State - IGST)'}`, 365, 210);
+    // SMART LOGIC: PDF Height limit increase to allow Phone Number printing
+    if (billData.clientAddress) doc.text(`${billData.clientAddress}`, 250, 80, { align: 'right', width: 295, height: 60 });
 
-    const tableTop = 260;
+    // Design layout shifted downwards slightly to ensure no overlap with big addresses
+    const lineY = 150; 
+    doc.moveTo(50, lineY).lineTo(545, lineY).lineWidth(1).strokeColor('#e2e8f0').stroke();
+
+    const detailsY = 170;
+    doc.fillColor(textColor).fontSize(9).font('Helvetica-Bold').text('Billed To (Customer Details)', 50, detailsY);
+    doc.font('Helvetica').fontSize(9).fillColor(lightText);
+    doc.text(`${billData.customerName || 'N/A'}`, 50, detailsY + 20);
+    doc.text(`${billData.customerGST || ''}`, 50, detailsY + 35);
+    doc.text(`${billData.customerAddress || ''}`, 50, detailsY + 50, { width: 200, height: 40 });
+
+    doc.fillColor(textColor).fontSize(9).font('Helvetica-Bold').text('Invoice Details', 300, detailsY);
+    doc.font('Helvetica').fontSize(8).fillColor(lightText);
+    doc.text(`Invoice No.:`, 300, detailsY + 20);
+    doc.fillColor(textColor).font('Helvetica-Bold').text(`${billData.invoiceNo || 'N/A'}`, 300, detailsY + 35);
+    doc.fillColor(lightText).font('Helvetica').text(`Invoice Date:`, 440, detailsY + 20);
+    doc.fillColor(textColor).font('Helvetica-Bold').text(`${new Date().toLocaleDateString()}`, 440, detailsY + 35);
+    
+    doc.fillColor(lightText).font('Helvetica').text(`Type of Supply:`, 300, detailsY + 60);
+    doc.fillColor(textColor).font('Helvetica-Bold').text(`${billData.supplyType || 'Inter-State (Different State - IGST)'}`, 365, detailsY + 60);
+
+    const tableTop = 290;
     doc.rect(50, tableTop, 495, 20).fill(primaryColor);
 
     const headerY = tableTop + 6;
@@ -240,7 +251,6 @@ function generateAndSendPDF(billData) {
     doc.moveTo(50, currentY).lineTo(545, currentY).lineWidth(1).strokeColor('#e2e8f0').stroke();
 
     const totalBoxY = currentY + 15;
-    // SMART LOGIC: Box height badha di taaki CGST/SGST dono perfectly fit ho jayein
     doc.rect(320, totalBoxY, 225, 75).lineWidth(1).strokeColor('#e2e8f0').stroke();
 
     const taxY = totalBoxY + 8;
@@ -250,7 +260,6 @@ function generateAndSendPDF(billData) {
     let nextY = taxY + 16;
     const isIgst = billData.supplyType && billData.supplyType.includes('IGST');
 
-    // SMART LOGIC: PDF Draw Break-up (IGST vs CGST/SGST)
     if (isIgst) {
         doc.fillColor(lightText).text('IGST:', 330, nextY);
         doc.fillColor(textColor).text(`Rs. ${strTaxAmt}`, 460, nextY, { width: 75, align: 'right' });
@@ -279,7 +288,6 @@ function generateAndSendPDF(billData) {
     const defaultTerms = "1. Any disputes will be under Local jurisdiction.\n2. Goods once sold will not be taken back.\n3. Payment shall be made within 15 days from the date of invoice; otherwise interest @ 18% per annum will be charged.\n4. All warranties are as per company rules.\nE. & O. E.";
     const termsToPrint = billData.terms || defaultTerms;
     
-    // FIXED: Height limit strictly badha kar 85 kar di gayi hai.
     doc.text(termsToPrint, 60, footerY + 22, { width: 475, height: 85, ellipsis: true });
 
     doc.end();
@@ -336,7 +344,8 @@ app.post('/api/login', async (req, res) => {
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) return res.status(400).json({ message: "Invalid credentials!" });
         
-        res.status(200).json({ companyName: user.companyName, gstin: user.gstin, address: user.address });
+        // SMART LOGIC: Sending back email as well so frontend can store it
+        res.status(200).json({ companyName: user.companyName, gstin: user.gstin, address: user.address, email: user.email });
     } catch (error) { res.status(500).json({ message: "Server error!" }); }
 });
 
