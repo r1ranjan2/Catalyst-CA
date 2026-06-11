@@ -21,6 +21,9 @@
     </style>
 </head>
 <body class="bg-slate-50 font-sans antialiased">
+    
+    <datalist id="itemSuggestions"></datalist>
+
     <div class="no-print w-full bg-white shadow-sm p-4 flex justify-between items-center mb-6">
         <div class="flex items-center gap-2">
             <i class="fa-solid fa-building text-2xl text-blue-700"></i>
@@ -151,7 +154,6 @@
         const clientName = localStorage.getItem('activeClientName');
         const clientGST = localStorage.getItem('activeClientGST');
         const clientAddress = localStorage.getItem('activeClientAddress');
-        // SMART LOGIC: Retrieve email from local storage
         const clientEmail = localStorage.getItem('activeClientEmail'); 
         
         if (!clientName) window.location.href = "login.html";
@@ -172,6 +174,20 @@
         }
         document.getElementById('headerClientState').innerText = getStateName(clientGST);
         document.getElementById('invoiceDate').valueAsDate = new Date();
+
+        // SMART LOGIC: Load saved item names from localStorage into the datalist
+        function loadItemSuggestions() {
+            let savedItems = JSON.parse(localStorage.getItem('savedItemNames') || '[]');
+            let datalist = document.getElementById('itemSuggestions');
+            datalist.innerHTML = '';
+            savedItems.forEach(item => {
+                let option = document.createElement('option');
+                option.value = item;
+                datalist.appendChild(option);
+            });
+        }
+        // Run immediately when page loads
+        loadItemSuggestions();
 
         let items = [];
 
@@ -206,8 +222,10 @@
 
                 const row = document.createElement('div');
                 row.className = 'flex items-center gap-1 p-1 rounded hover:bg-slate-50 transition border border-transparent';
+                
+                // SMART LOGIC: Added list="itemSuggestions" to the input field so it shows the dropdown
                 row.innerHTML = `
-                    <input type="text" value="${item.name}" oninput="updateItem(${item.id}, 'name', this.value)" placeholder="Item Description" class="flex-grow px-2 py-1 border border-slate-200 rounded focus:border-blue-500 outline-none text-xs">
+                    <input type="text" value="${item.name}" list="itemSuggestions" oninput="updateItem(${item.id}, 'name', this.value)" placeholder="Item Description" class="flex-grow px-2 py-1 border border-slate-200 rounded focus:border-blue-500 outline-none text-xs" autocomplete="off">
                     <input type="text" value="${item.hsn}" oninput="updateItem(${item.id}, 'hsn', this.value)" placeholder="HSN" class="w-20 px-2 py-1 border border-slate-200 rounded focus:border-blue-500 outline-none text-xs text-center">
                     <input type="number" value="${item.qty}" min="1" oninput="updateItem(${item.id}, 'qty', this.value)" class="w-16 px-2 py-1 border border-slate-200 rounded focus:border-blue-500 outline-none text-xs text-center">
                     <input type="number" value="${item.rate}" min="0" oninput="updateItem(${item.id}, 'rate', this.value)" class="w-24 px-2 py-1 border border-slate-200 rounded focus:border-blue-500 outline-none text-xs text-right">
@@ -305,12 +323,22 @@
             const currentTerms = document.getElementById('termsInput').value;
             localStorage.setItem('savedInvoiceTerms', currentTerms);
 
+            // SMART LOGIC: Save unique item names to localStorage
+            let currentItemNames = items.map(i => i.name.trim()).filter(n => n !== '');
+            if(currentItemNames.length > 0) {
+                let savedItems = JSON.parse(localStorage.getItem('savedItemNames') || '[]');
+                // Mix old and new items, remove duplicates, and save
+                let newSavedItems = [...new Set([...savedItems, ...currentItemNames])];
+                localStorage.setItem('savedItemNames', JSON.stringify(newSavedItems));
+                loadItemSuggestions(); // Refresh datalist for the future
+            }
+
             const billData = {
                 clientCompanyName: clientName,
                 clientGST: clientGST,
                 clientState: getStateName(clientGST),
                 clientAddress: clientAddress,
-                clientEmail: clientEmail, // SMART LOGIC: Passing Email to Backend
+                clientEmail: clientEmail, 
                 customerName: document.getElementById('customerName').value,
                 customerGST: document.getElementById('customerGST').value,
                 customerAddress: document.getElementById('customerAddress').value,
